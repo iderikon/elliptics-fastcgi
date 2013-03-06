@@ -42,14 +42,12 @@ private:
 
     void uploadHandler (fastcgi::Request *request);
     void getHandler (fastcgi::Request *request);
+    void deleteHandler (fastcgi::Request *request);
 
     fastcgi::Logger *logger_;
     boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
     RequestHandlers handlers_;
-
-    // TODO:
-
 };
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()

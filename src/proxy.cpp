@@ -258,6 +258,7 @@ void Proxy::onLoad () {
     //
     registerHandler ("upload", &Proxy::uploadHandler);
     registerHandler ("get", &Proxy::getHandler);
+    registerHandler ("delete", &Proxy::deleteHandler);
 
 	log ()->debug ("HANDLE handles are registred");
 }
@@ -267,12 +268,29 @@ void Proxy::onUnload () {
 
 void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *context) {
     (void)context;
-	//log ()->debug ("HANDLE process any request. Script: %s\n", request->getScriptName ().c_str ());
-	//return;
+    log ()->debug ("Handling request: %s", request->getScriptName ().c_str ());
+
+    /*std::string content;
+    request->requestBody().toString(content);
+
+    request->setStatus (200);
+    request->setContentType ("text/plain");
+
+    std::stringstream ss;
+    ss << "Content: \n" << content << std::endl
+       << "Script name: " << request->getScriptName () << std::endl;
+    content = ss.str ();
+
+    request->setHeader ("Content-Length",
+                        boost::lexical_cast <std::string> (content.length ()));
+    request->write (content.c_str (), content.length ());
+    request->setHeader ("Data", content);
+    return;*/
+
     try {
+#if 0
         std::string handler;
         if (request->getQueryString().length() != 0) {
-#if 0
             if (request->hasArg("stat") || request->hasArg("ping")) {
                 handler = "stat";
             }
@@ -305,21 +323,43 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
                     handler = request->getServerPort() == write_port_ ? "upload" : "download-info";
                 }
                 else {
-#endif
                     handler = request->getScriptName().substr(1, std::string::npos);
-#if 0
                 }
             }
-#endif
         }
         else {
             handler = request->getScriptName().substr(1, std::string::npos);
         }
+#endif
+        std::string handler = request->getScriptName().substr(
+                    1, std::string::npos);
         std::string::size_type pos = handler.find('/');
         handler = handler.substr(0, pos);
         RequestHandlers::iterator it = handlers_.find(handler);
         if (handlers_.end() == it) {
+            log ()->debug ("Handle for <%s> request not found",
+                           handler.c_str ());
             throw fastcgi::HttpException(404);
+
+            /*request->setStatus (200);
+            request->setContentType ("text/plain");
+
+            std::stringstream ss;
+            ss << "Script name: " << request->getScriptName () << std::endl
+               << "Handler: " << handler << std::endl;
+
+            for (RequestHandlers::iterator it = handlers_.begin ();
+                 it != handlers_.end (); ++it) {
+                ss << it->first << '\t' << it->second << std::endl;
+            }
+
+            std::string content = ss.str ();
+
+            request->setHeader ("Content-Length",
+                                boost::lexical_cast <std::string> (content.length ()));
+            request->write (content.c_str (), content.length ());
+            request->setHeader ("Data", content);
+            return;*/
         }
 #if 0
         if (allow_origin_handlers_.end() != allow_origin_handlers_.find(handler)) {
@@ -327,12 +367,15 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
         }
 #endif
 
+        log ()->debug ("Process request <%s>", handler.c_str ());
         (this->*it->second)(request);
     }
     catch (const fastcgi::HttpException &e) {
+        log ()->debug ("Exception: %s", e.what ());
         throw;
     }
     catch (...) {
+        log ()->debug ("Exception: unknown");
         throw fastcgi::HttpException(501);
     }
 }
@@ -341,17 +384,17 @@ fastcgi::Logger *Proxy::log() const {
     return logger_;
 }
 
-size_t Proxy::paramsNum(Proxy::Tokenizer &tok) {
+size_t Proxy::paramsNum (Proxy::Tokenizer &tok) {
     size_t result = 0;
-    for (Tokenizer::iterator it = ++tok.begin(), end = tok.end(); end != it; ++it) {
+    for (Tokenizer::iterator it = ++tok.begin (), end = tok.end (); end != it; ++it) {
         ++result;
     }
     return result;
 }
 
-void Proxy::dnet_parse_numeric_id(const std::string &value, struct dnet_id &id) {
+void Proxy::dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) {
     unsigned char ch[5];
-    unsigned int i, len = value.size();
+    unsigned int i, len = value.size ();
     const char *ptr = value.data();
 
     memset(id.id, 0, DNET_ID_SIZE);
@@ -366,61 +409,31 @@ void Proxy::dnet_parse_numeric_id(const std::string &value, struct dnet_id &id) 
         ch[2] = ptr[2*i + 0];
         ch[3] = ptr[2*i + 1];
 
-        id.id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+        id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
     }
 
     if (len & 1) {
         ch[2] = ptr[2*i + 0];
         ch[3] = '0';
 
-        id.id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+        id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
     }
 }
 
 void Proxy::registerHandler (const char *name, Proxy::RequestHandler handler) {
     bool was_inserted = handlers_.insert (std::make_pair (name, handler)).second;
     if (!was_inserted) {
-        log ()->error ("repeated registration of %s handler", name);
+        log ()->error ("Repeated registration of %s handler", name);
     }
 }
 
-void Proxy::uploadHandler(fastcgi::Request *request)
-{
-    //request->setHeader ("Simple-Header", "Reply from proxy");
+void Proxy::uploadHandler(fastcgi::Request *request) {
 
-    /*const std::streamsize buf_size = 1024;
-    char buf [buf_size] = {0};
-    const std::streamsize written = snprintf (
-                buf, buf_size, "%s", request->getQueryString ().c_str ());*/
-    //request->setHeader ("QueryString", request->getQueryString ());
-    //request->setHeader ("ScriptName", request->getScriptName ());
-    //request->setHeader ("_countArgs",
-    //                    boost::lexical_cast <std::string> (request->countArgs ()));
-    //request->setHeader ("Has_a", boost::lexical_cast <std::string> (request->hasArg ("a")));
-
-    /*if (request->hasArg ("get")) {
-
-        request->write (buf, written);
-    }*/
-
-    /*
--- Key &key,
-std::string &data,
--- uint64_t offset,
--- uint64_t size,
--- uint64_t cflags,
--- uint64_t ioflags,
--- std::vector<int> &groups,
--- unsigned int replication_count,
-- std::vector<boost::shared_ptr<embed> > embeds
-*/
+    // TODO:
+    // std::string &data should be taken from requestBody
+    // std::vector<boost::shared_ptr<embed> > embeds
 
     //boost::optional <elliptics::Key> key;
-
-//	request->setHeader ("Header", "Proxy");
-//	return;
-	log ()->debug ("HANDLER upload start");
-
     elliptics::Key key;
     uint64_t size;
     std::string data;
@@ -445,6 +458,8 @@ std::string &data,
             }
         }
         catch (...) {
+            log ()->debug ("Exception: gorups <%s> is incorrect",
+                           request->getArg ("groups").c_str ());
             throw fastcgi::HttpException(503);
         }
     }
@@ -478,23 +493,41 @@ std::string &data,
 		}
     }
 
-	log ()->debug ("HANDLER upload calling lib");
-
     // TODO: temporary code for testing
-    data = request->getArg ("data");
+    //data = request->getArg ("data");
+    request->requestBody ().toString (data);
 
     try {
-        ellipticsProxy_->write (key, data, offset = offset, size = size, cflags = cflags,
-                                ioflags = ioflags, groups = groups,
-                                replication_count = replication_count);
+        using namespace elliptics;
+        std::vector <LookupResult> l =  ellipticsProxy_->write (
+                    key, data,
+                    _offset = offset, _size = size, _cflags = cflags,
+                    _ioflags = ioflags, _groups = groups,
+                    _replication_count = replication_count);
 		log ()->debug ("HANDLER upload success");
 
         request->setStatus (200);
+
+        std::stringstream ss;
+        ss << "written " << l.size() << " copies" << std::endl;
+        for (std::vector<LookupResult>::const_iterator it = l.begin ();
+             it != l.end (); ++it) {
+            ss << "\tgroup: " << it->group << "\tpath: " << it->hostname
+               << ":" << it->port << it->path << std::endl;
+        }
+
+        std::string str = ss.str ();
+
+        request->setContentType ("text/plaint");
+        request->setHeader ("Context-Lenght",
+                            boost::lexical_cast <std::string> (
+                                str.length ()));
+        request->write (str.c_str (), str.size ());
     } catch (const std::exception &e) {
-        log()->error("Error occurred: %s", e.what());
+        log ()->error("Exception: %s", e.what());
         request->setStatus (503);
     } catch (...) {
-        log()->error("Error occured unknown");
+        log ()->error("Eexception: unknown");
         request->setStatus (503);
     }
 }
@@ -512,18 +545,66 @@ void Proxy::getHandler(fastcgi::Request *request) {
             request->getScriptName().substr(sizeof ("/upload/") - 1, std::string::npos);
         int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
         key = elliptics::Key (filename, column);
-
-        /*if (request->hasArg ("prepare")) {
-            size = boost::lexical_cast<uint64_t>(request->getArg("prepare"));
-            ioflags = DNET_IO_FLAGS_PREPARE;
-        } else if (request->hasArg ("commit")) {
-            size = 0;
-            ioflags = DNET_IO_FLAGS_COMMIT;
-        } else if (request->hasArg ("plain_write")) {
-            size = 0;
-            ioflags = DNET_IO_FLAGS_PLAIN_WRITE;
-        }*/
     }
+
+    // TODO: embed
+    /*
+        uint64_t ts = 0;
+        if (request->hasArg("embed") || request->hasArg("embed_timestamp")) {
+            size_t size = result.size();
+            size_t offset = 0;
+
+            while (size) {
+                struct dnet_common_embed *e = (struct dnet_common_embed *)(result.data() + offset);
+
+                dnet_common_convert_embedded(e);
+
+                if (size < sizeof(struct dnet_common_embed)) {
+                    std::ostringstream str;
+                    str << filename << ": offset: " << offset << ", size: " << size << ": invalid size";
+                    throw std::runtime_error(str.str());
+                }
+
+                offset += sizeof(struct dnet_common_embed);
+                size -= sizeof(struct dnet_common_embed);
+
+                if (size < e->size + sizeof (struct dnet_common_embed)) {
+                    break;
+                }
+
+                if (e->type == DNET_FCGI_EMBED_TIMESTAMP) {
+                    uint64_t *ptr = (uint64_t *)e->data;
+
+                    ts = dnet_bswap64(ptr[0]);
+                }
+
+                if (e->type == DNET_FCGI_EMBED_DATA) {
+                    size = e->size;
+                    break;
+                }
+
+                if (e->type > DNET_FCGI_EMBED_TIMESTAMP) {
+                    int http_status = 200;
+                    bool allowed = true;
+                                        for (size_t i = 0; i < embed_processors_.size(); i++) {
+                        if (embed_processors_[i].first == e->type) {
+                            log()->debug("Found embed processor for type %d", e->type);
+                            allowed = embed_processors_[i].second->processEmbed(request, *e, http_status);
+                            log()->debug("After embed processor http status %d, allowed %d", http_status, allowed);
+                        }
+                        if (!allowed) {
+                            request->setStatus(http_status);
+                            return;
+                        }
+                    }
+                }
+
+                offset += e->size;
+                size -= e->size;
+            }
+            result = result.substr(offset, std::string::npos);
+        }
+*/
 
     elliptics::ReadResult result = ellipticsProxy_->read (key);
     request->setStatus (200);
@@ -532,4 +613,49 @@ void Proxy::getHandler(fastcgi::Request *request) {
                         boost::lexical_cast <std::string> (result.data.length ()));
 	request->setHeader ("Data", result.data);
     request->write (result.data.c_str (), result.data.length ());
+}
+
+void Proxy::deleteHandler(fastcgi::Request *request) {
+    elliptics::Key key;
+
+    if (request->hasArg ("id")) {
+        struct dnet_id id;
+        dnet_parse_numeric_id (request->getArg ("id"), id);
+        elliptics::ID ID (id);
+        key = elliptics::Key (ID);
+    } else {
+        std::string filename = request->hasArg ("name") ? request->getArg ("name") :
+            request->getScriptName().substr(sizeof ("/upload/") - 1, std::string::npos);
+        int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
+        key = elliptics::Key (filename, column);
+    }
+
+    std::vector<int> groups;
+
+    if (request->hasArg ("groups")) {
+        Separator sep (":");
+        Tokenizer tok (request->getArg ("groups"), sep);
+
+        try {
+            for (Tokenizer::iterator it = tok.begin (), end = tok.end (); end != it; ++it) {
+                groups.push_back (boost::lexical_cast<int>(*it));
+            }
+        }
+        catch (...) {
+            log ()->debug ("Exception: gorups <%s> is incorrect",
+                           request->getArg ("groups").c_str ());
+            throw fastcgi::HttpException(503);
+        }
+    }
+
+    try {
+        using namespace elliptics;
+        ellipticsProxy_->remove (key, _groups = groups);
+    } catch (std::exception &e) {
+        log ()->error("Exception: %s", e.what());
+        request->setStatus (503);
+    } catch (...) {
+        log ()->error("Eexception: unknown");
+        request->setStatus (503);
+    }
 }
