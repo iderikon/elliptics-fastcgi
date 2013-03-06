@@ -16,17 +16,17 @@
 
 class Proxy : 
 	  virtual public fastcgi::Component
-    , virtual public fastcgi::Handler
+	, virtual public fastcgi::Handler
 {
 private:
-    typedef void (Proxy::*RequestHandler) (fastcgi::Request *request);
-    //using RequestHandler = void (Proxy::*) (fastcgi::Request *request);
-    typedef std::map <std::string, RequestHandler> RequestHandlers;
-    typedef boost::char_separator <char> Separator;
-    typedef boost::tokenizer <Separator> Tokenizer;
+	typedef void (Proxy::*RequestHandler) (fastcgi::Request *request);
+	//using RequestHandler = void (Proxy::*) (fastcgi::Request *request);
+	typedef std::map <std::string, RequestHandler> RequestHandlers;
+	typedef boost::char_separator <char> Separator;
+	typedef boost::tokenizer <Separator> Tokenizer;
 
 public:
-    Proxy (fastcgi::ComponentContext *context);
+	Proxy (fastcgi::ComponentContext *context);
 	virtual ~Proxy ();
 
 	virtual void onLoad ();
@@ -34,20 +34,20 @@ public:
 	virtual void handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *context);
 
 private:
-    fastcgi::Logger *log () const;
+	fastcgi::Logger *log () const;
 
-    size_t paramsNum(Tokenizer &tok);
-    void dnet_parse_numeric_id(const std::string &value, struct dnet_id &id);
-    void registerHandler (const char *name, RequestHandler handler);
+	size_t paramsNum(Tokenizer &tok);
+	void dnet_parse_numeric_id(const std::string &value, struct dnet_id &id);
+	void registerHandler (const char *name, RequestHandler handler);
 
-    void uploadHandler (fastcgi::Request *request);
-    void getHandler (fastcgi::Request *request);
-    void deleteHandler (fastcgi::Request *request);
+	void uploadHandler (fastcgi::Request *request);
+	void getHandler (fastcgi::Request *request);
+	void deleteHandler (fastcgi::Request *request);
 
-    fastcgi::Logger *logger_;
-    boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
+	fastcgi::Logger *logger_;
+	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
-    RequestHandlers handlers_;
+	RequestHandlers handlers_;
 };
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
