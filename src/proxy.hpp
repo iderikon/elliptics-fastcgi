@@ -36,13 +36,17 @@ public:
 private:
 	fastcgi::Logger *log () const;
 
-	size_t paramsNum(Tokenizer &tok);
-	void dnet_parse_numeric_id(const std::string &value, struct dnet_id &id);
+	size_t paramsNum (Tokenizer &tok) const;
+	void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) const;
+	void getGroups (fastcgi::Request *request, std::vector <int> &groups, int count = 0) const;
+	elliptics::Key getKey (fastcgi::Request *request) const;
+
 	void registerHandler (const char *name, RequestHandler handler);
 
 	void uploadHandler (fastcgi::Request *request);
 	void getHandler (fastcgi::Request *request);
 	void deleteHandler (fastcgi::Request *request);
+	void downloadInfoHandler (fastcgi::Request *request);
 
 	fastcgi::Logger *logger_;
 	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
