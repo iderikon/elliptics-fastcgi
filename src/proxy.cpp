@@ -32,8 +32,7 @@ void Proxy::onLoad () {
 
 	elconf.state_num = config->asInt(path + "/dnet/die-limit");
 	elconf.base_port = config->asInt(path + "/dnet/base-port");
-	// TODO:
-	// write_port_ = config->asInt(path + "/dnet/write-port", 9000);
+	write_port_ = config->asInt(path + "/dnet/write-port", 9000);
 	elconf.directory_bit_num = config->asInt(path + "/dnet/directory-bit-num");
 	elconf.eblob_style_path = config->asInt(path + "/dnet/eblob_style_path", 0);
 
@@ -289,26 +288,26 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 	return;*/
 
 	try {
-#if 0
+//#if 0
 		std::string handler;
 		if (request->getQueryString().length() != 0) {
-			if (request->hasArg("stat") || request->hasArg("ping")) {
+			if (request->hasArg("direct")) {
+				handler = "get";
+			} else if (request->hasArg("unlink")) {
+				handler = "delete";
+			}
+#if 0
+			else if (request->hasArg("stat") || request->hasArg("ping")) {
 				handler = "stat";
 			}
 			else if (request->hasArg("stat_log")) {
 				handler = "stat-log";
-			}
-			else if (request->hasArg("direct")) {
-				handler = "get";
 			}
 			else if (request->hasArg("range")) {
 				handler = "range";
 			}
 			else if (request->hasArg("range-delete")) {
 				handler = "range-delete";
-			}
-			else if (request->hasArg("unlink")) {
-				handler = "delete";
 			}
 			else if (request->hasArg("bulk-read")) {
 				handler = "bulk-read";
@@ -319,6 +318,7 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 			else if (request->hasArg("exec-script")) {
 				handler = "exec-script";
 			}
+#endif
 			else {
 				if (request->hasArg("name")) {
 					handler = request->getServerPort() == write_port_ ? "upload" : "download-info";
@@ -331,9 +331,6 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 		else {
 			handler = request->getScriptName().substr(1, std::string::npos);
 		}
-#endif
-		std::string handler = request->getScriptName().substr(
-					1, std::string::npos);
 		std::string::size_type pos = handler.find('/');
 		handler = handler.substr(0, pos);
 		RequestHandlers::iterator it = handlers_.find(handler);
@@ -451,8 +448,15 @@ elliptics::Key Proxy::getKey(fastcgi::Request *request) const
 		elliptics::ID ID (id);
 		return elliptics::Key (ID);
 	} else {
-		std::string filename = request->hasArg ("name") ? request->getArg ("name") :
-			request->getScriptName().substr(sizeof ("/upload/") - 1, std::string::npos);
+		std::string filename;
+		if (request->hasArg ("name")) {
+			filename = request->getArg ("name");
+		} else {
+			std::string scriptname = request->getScriptName ();
+			std::string::size_type begin = scriptname.find ('/', 1) + 1;
+			std::string::size_type end = scriptname.find ('?', begin);
+			filename = scriptname.substr (begin, end - begin);
+		}
 		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
 		return elliptics::Key (filename, column);
 	}
@@ -661,11 +665,13 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	// TODO: add cokie
 	// TODO: transpose ip to name
 
+	ss << "<download-info>";
 	//ss << "<ip>" << request->getRemoteAddr () << "</ip>";
 	ss << "<host>" << lr.hostname << "</host>";
 	ss << "<path>" << lr.path << "</path>";
 	ss << "<group>" << lr.group << "</group>";
 	ss << "<region>" << region << "</region>";
+	ss << "</download-info>";
 
 	std::string str = ss.str ();
 

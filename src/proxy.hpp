@@ -52,6 +52,8 @@ private:
 	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
 	RequestHandlers handlers_;
+
+	int write_port_;
 };
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
