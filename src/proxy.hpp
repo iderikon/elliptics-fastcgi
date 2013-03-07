@@ -13,6 +13,7 @@
 #include <elliptics/proxy.hpp>
 
 #include <map>
+#include <set>
 
 class Proxy : 
 	  virtual public fastcgi::Component
@@ -24,8 +25,8 @@ private:
 	typedef std::map <std::string, RequestHandler> RequestHandlers;	
 
 public:
-    typedef boost::char_separator <char> Separator;
-    typedef boost::tokenizer <Separator> Tokenizer;
+	typedef boost::char_separator <char> Separator;
+	typedef boost::tokenizer <Separator> Tokenizer;
 
 	Proxy (fastcgi::ComponentContext *context);
 	virtual ~Proxy ();
@@ -37,11 +38,6 @@ public:
 private:
 	fastcgi::Logger *log () const;
 
-    //size_t paramsNum (Tokenizer &tok) const;
-    //void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) const;
-    //void getGroups (fastcgi::Request *request, std::vector <int> &groups, int count = 0) const;
-    //elliptics::Key getKey (fastcgi::Request *request) const;
-
 	void registerHandler (const char *name, RequestHandler handler);
 
 	void uploadHandler (fastcgi::Request *request);
@@ -50,12 +46,15 @@ private:
 	void downloadInfoHandler (fastcgi::Request *request);
 
 	fastcgi::Logger *logger_;
-    elliptics::EllipticsProxy::config elconf;
 	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
 	RequestHandlers handlers_;
 
 	int write_port_;
+
+	std::set <std::string> deny_list_;
+	std::set <std::string> allow_list_;
+	std::map<std::string, std::string> typemap_;
 };
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()

@@ -92,22 +92,25 @@ static void getGroups (fastcgi::Request *request, std::vector <int> &groups, int
 	}
 }
 
-static elliptics::Key getKey(fastcgi::Request *request) {
+static std::string getFilename (fastcgi::Request *request) {
+	if (request->hasArg ("name")) {
+		return request->getArg ("name");
+	} else {
+		std::string scriptname = request->getScriptName ();
+		std::string::size_type begin = scriptname.find ('/', 1) + 1;
+		std::string::size_type end = scriptname.find ('?', begin);
+		return scriptname.substr (begin, end - begin);
+	}
+}
+
+static elliptics::Key getKey (fastcgi::Request *request) {
 	if (request->hasArg ("id")) {
 		struct dnet_id id;
 		dnet_parse_numeric_id (request->getArg ("id"), id);
 		elliptics::ID ID (id);
 		return elliptics::Key (ID);
 	} else {
-		std::string filename;
-		if (request->hasArg ("name")) {
-			filename = request->getArg ("name");
-		} else {
-			std::string scriptname = request->getScriptName ();
-			std::string::size_type begin = scriptname.find ('/', 1) + 1;
-			std::string::size_type end = scriptname.find ('?', begin);
-			filename = scriptname.substr (begin, end - begin);
-		}
+		std::string filename = getFilename (request);
 		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
 		return elliptics::Key (filename, column);
 	}
@@ -124,7 +127,7 @@ void Proxy::onLoad () {
 	const fastcgi::Config *config = context ()->getConfig ();
 	std::string path(context()->getComponentXPath());
 
-	//elliptics::EllipticsProxy::config elconf;
+	elliptics::EllipticsProxy::config elconf;
 	std::vector<std::string> names;
 
 	logger_ = context()->findComponent<fastcgi::Logger>(config->asString(path + "/logger"));
@@ -212,8 +215,6 @@ void Proxy::onLoad () {
 
 	}
 
-	// TODO: allow and deny
-	/*
 	names.clear();
 	config->subKeys(path + "/dnet/allow/extention", names);
 	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
@@ -225,7 +226,7 @@ void Proxy::onLoad () {
 	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
 		deny_list_.insert(config->asString(it->c_str()));
 	}
-*/
+
 
 	{
 		std::string groups = config->asString(path + "/dnet/groups", "");
@@ -246,12 +247,10 @@ void Proxy::onLoad () {
 	elconf.success_copies_num = config->asInt(
 				path + "/dnet/success-copies-num", elconf.groups.size());
 
-	// TODO: typemap
-	/*
-	std::vector<std::string> typemap;
-	config->subKeys(path + "/dnet/typemap/type", typemap);
+	names.clear ();
+	config->subKeys(path + "/dnet/typemap/type", names);
 
-	for (std::vector<std::string>::iterator it = typemap.begin(), end = typemap.end(); end != it; ++it) {
+	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
 		std::string match = config->asString(it->c_str());
 
 		std::string::size_type pos = match.find("->");
@@ -261,8 +260,8 @@ void Proxy::onLoad () {
 		typemap_[extention] = type;
 	}
 
-	expires_ = config->asInt(path + "/dnet/expires-time", 0);
-*/
+	// TODO:
+	//expires_ = config->asInt(path + "/dnet/expires-time", 0);
 
 	elconf.metabase_write_addr = config->asString(path + "/dnet/metabase/write-addr", "");
 	elconf.metabase_read_addr = config->asString(path + "/dnet/metabase/read-addr", "");
@@ -576,8 +575,8 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 					key, data,
 					_offset = offset, _size = size, _cflags = cflags,
 					_ioflags = ioflags, _groups = groups,
-					_replication_count = replication_count//,
-					/*_embeds = embeds*/);
+					_replication_count = replication_count/*,
+					_embeds = embeds*/);
 		log ()->debug ("HANDLER upload success");
 
 		request->setStatus (200);
@@ -609,9 +608,29 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 void Proxy::getHandler(fastcgi::Request *request) {
 	elliptics::Key key = getKey (request);
 
+	std::string content_type;
+	{
+		std::string filename = getFilename (request);
+		std::string extention = filename.substr(filename.rfind('.') + 1, std::string::npos);
+
+		if (deny_list_.find(extention) != deny_list_.end() ||
+			(deny_list_.find("*") != deny_list_.end() &&
+			allow_list_.find(extention) == allow_list_.end())) {
+			throw fastcgi::HttpException(403);
+		}
+
+		std::map<std::string, std::string>::iterator it = typemap_.find(extention);
+
+		if (typemap_.end() == it) {
+			content_type = "application/octet";
+		} else {
+			content_type = it->second;
+		}
+	}
+
 	elliptics::ReadResult result = ellipticsProxy_->read (key);
 	request->setStatus (200);
-	request->setContentType ("text/plain");
+	request->setContentType (content_type);
 
 	std::istringstream iss (result.data, std::ios_base::binary | std::ios_base::in);
 
