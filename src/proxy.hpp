@@ -21,11 +21,12 @@ class Proxy :
 private:
 	typedef void (Proxy::*RequestHandler) (fastcgi::Request *request);
 	//using RequestHandler = void (Proxy::*) (fastcgi::Request *request);
-	typedef std::map <std::string, RequestHandler> RequestHandlers;
-	typedef boost::char_separator <char> Separator;
-	typedef boost::tokenizer <Separator> Tokenizer;
+	typedef std::map <std::string, RequestHandler> RequestHandlers;	
 
 public:
+    typedef boost::char_separator <char> Separator;
+    typedef boost::tokenizer <Separator> Tokenizer;
+
 	Proxy (fastcgi::ComponentContext *context);
 	virtual ~Proxy ();
 
@@ -36,10 +37,10 @@ public:
 private:
 	fastcgi::Logger *log () const;
 
-	size_t paramsNum (Tokenizer &tok) const;
-	void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) const;
-	void getGroups (fastcgi::Request *request, std::vector <int> &groups, int count = 0) const;
-	elliptics::Key getKey (fastcgi::Request *request) const;
+    //size_t paramsNum (Tokenizer &tok) const;
+    //void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) const;
+    //void getGroups (fastcgi::Request *request, std::vector <int> &groups, int count = 0) const;
+    //elliptics::Key getKey (fastcgi::Request *request) const;
 
 	void registerHandler (const char *name, RequestHandler handler);
 
@@ -49,6 +50,7 @@ private:
 	void downloadInfoHandler (fastcgi::Request *request);
 
 	fastcgi::Logger *logger_;
+    elliptics::EllipticsProxy::config elconf;
 	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
 	RequestHandlers handlers_;

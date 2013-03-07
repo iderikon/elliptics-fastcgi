@@ -6,9 +6,112 @@
 #include <cstring>
 #include <cstdio>
 #include <iostream>
+#include <string>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/optional/optional.hpp>
+
+class Embed : public elliptics::embed {
+public:
+	const std::string pack () const {
+		const size_t buf_size = 3 * sizeof (uint32_t) + data.size ();
+		std::vector <char> vb (buf_size);
+		char *buf = vb.data ();
+		uint32_t *pdata = (uint32_t *)buf;
+		*pdata++ = type;
+		*pdata++ = flags;
+		*pdata++ = data.size ();
+		//strcpy ((char *)pdata, data.c_str ());
+		memcpy (pdata, data.c_str (), data.size ());
+		return std::string (vb.begin (), vb.end ());
+	}
+
+	const static uint32_t DNET_FCGI_EMBED_DATA = 1;
+	const static uint32_t DNET_FCGI_EMBED_TIMESTAMP = 2;
+};
+
+static size_t paramsNum (Proxy::Tokenizer &tok) {
+	size_t result = 0;
+	for (auto it = ++tok.begin (), end = tok.end (); end != it; ++it) {
+		++result;
+	}
+	return result;
+}
+
+static void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) {
+	unsigned char ch[5];
+	unsigned int i, len = value.size ();
+	const char *ptr = value.data();
+
+	memset(id.id, 0, DNET_ID_SIZE);
+
+	if (len/2 > DNET_ID_SIZE)
+		len = DNET_ID_SIZE * 2;
+
+	ch[0] = '0';
+	ch[1] = 'x';
+	ch[4] = '\0';
+	for (i=0; i<len / 2; i++) {
+		ch[2] = ptr[2*i + 0];
+		ch[3] = ptr[2*i + 1];
+
+		id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
+	}
+
+	if (len & 1) {
+		ch[2] = ptr[2*i + 0];
+		ch[3] = '0';
+
+		id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
+	}
+}
+
+static void getGroups (fastcgi::Request *request, std::vector <int> &groups, int count = 0) {
+	if (request->hasArg ("groups")) {
+		Proxy::Separator sep (":");
+		Proxy::Tokenizer tok (request->getArg ("groups"), sep);
+
+		try {
+			for (auto it = tok.begin (), end = tok.end (); end != it; ++it) {
+				groups.push_back (boost::lexical_cast <int> (*it));
+			}
+		}
+		catch (...) {
+			//log ()->debug ("Exception: groups <%s> is incorrect",
+			  //             request->getArg ("groups").c_str ());
+			//throw fastcgi::HttpException (503);
+			std::stringstream ss;
+			ss << "groups <" << request->getArg ("groups") << "> is incorrect";
+			std::string str = ss.str ();
+			throw std::runtime_error (str);
+		}
+	}
+
+	if (count != 0 && (size_t)count < groups.size ()) {
+		groups.erase(groups.begin () + count, groups.end ());
+	}
+}
+
+static elliptics::Key getKey(fastcgi::Request *request) {
+	if (request->hasArg ("id")) {
+		struct dnet_id id;
+		dnet_parse_numeric_id (request->getArg ("id"), id);
+		elliptics::ID ID (id);
+		return elliptics::Key (ID);
+	} else {
+		std::string filename;
+		if (request->hasArg ("name")) {
+			filename = request->getArg ("name");
+		} else {
+			std::string scriptname = request->getScriptName ();
+			std::string::size_type begin = scriptname.find ('/', 1) + 1;
+			std::string::size_type end = scriptname.find ('?', begin);
+			filename = scriptname.substr (begin, end - begin);
+		}
+		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
+		return elliptics::Key (filename, column);
+	}
+}
 
 Proxy::Proxy (fastcgi::ComponentContext *context)
 	: fastcgi::Component(context)
@@ -21,7 +124,7 @@ void Proxy::onLoad () {
 	const fastcgi::Config *config = context ()->getConfig ();
 	std::string path(context()->getComponentXPath());
 
-	elliptics::EllipticsProxy::config elconf;
+	//elliptics::EllipticsProxy::config elconf;
 	std::vector<std::string> names;
 
 	logger_ = context()->findComponent<fastcgi::Logger>(config->asString(path + "/logger"));
@@ -288,7 +391,6 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 	return;*/
 
 	try {
-//#if 0
 		std::string handler;
 		if (request->getQueryString().length() != 0) {
 			if (request->hasArg("direct")) {
@@ -382,86 +484,6 @@ fastcgi::Logger *Proxy::log() const {
 	return logger_;
 }
 
-size_t Proxy::paramsNum (Proxy::Tokenizer &tok) const {
-	size_t result = 0;
-	for (Tokenizer::iterator it = ++tok.begin (), end = tok.end (); end != it; ++it) {
-		++result;
-	}
-	return result;
-}
-
-void Proxy::dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) const {
-	unsigned char ch[5];
-	unsigned int i, len = value.size ();
-	const char *ptr = value.data();
-
-	memset(id.id, 0, DNET_ID_SIZE);
-
-	if (len/2 > DNET_ID_SIZE)
-		len = DNET_ID_SIZE * 2;
-
-	ch[0] = '0';
-	ch[1] = 'x';
-	ch[4] = '\0';
-	for (i=0; i<len / 2; i++) {
-		ch[2] = ptr[2*i + 0];
-		ch[3] = ptr[2*i + 1];
-
-		id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
-	}
-
-	if (len & 1) {
-		ch[2] = ptr[2*i + 0];
-		ch[3] = '0';
-
-		id.id[i] = (unsigned char)strtol ((const char *)ch, NULL, 16);
-	}
-}
-
-void Proxy::getGroups (fastcgi::Request *request, std::vector <int> &groups, int count) const {
-	if (request->hasArg ("groups")) {
-		Separator sep (":");
-		Tokenizer tok (request->getArg ("groups"), sep);
-
-		try {
-			for (Tokenizer::iterator it = tok.begin (), end = tok.end (); end != it; ++it) {
-				groups.push_back (boost::lexical_cast <int> (*it));
-			}
-		}
-		catch (...) {
-			log ()->debug ("Exception: gorups <%s> is incorrect",
-						   request->getArg ("groups").c_str ());
-			throw fastcgi::HttpException (503);
-		}
-	}
-
-	if (count != 0 && count < groups.size ()) {
-		groups.erase(groups.begin () + count, groups.end ());
-	}
-}
-
-elliptics::Key Proxy::getKey(fastcgi::Request *request) const
-{
-	if (request->hasArg ("id")) {
-		struct dnet_id id;
-		dnet_parse_numeric_id (request->getArg ("id"), id);
-		elliptics::ID ID (id);
-		return elliptics::Key (ID);
-	} else {
-		std::string filename;
-		if (request->hasArg ("name")) {
-			filename = request->getArg ("name");
-		} else {
-			std::string scriptname = request->getScriptName ();
-			std::string::size_type begin = scriptname.find ('/', 1) + 1;
-			std::string::size_type end = scriptname.find ('?', begin);
-			filename = scriptname.substr (begin, end - begin);
-		}
-		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
-		return elliptics::Key (filename, column);
-	}
-}
-
 void Proxy::registerHandler (const char *name, Proxy::RequestHandler handler) {
 	bool was_inserted = handlers_.insert (std::make_pair (name, handler)).second;
 	if (!was_inserted) {
@@ -470,15 +492,9 @@ void Proxy::registerHandler (const char *name, Proxy::RequestHandler handler) {
 }
 
 void Proxy::uploadHandler(fastcgi::Request *request) {
-
-	// TODO:
-	// std::string &data should be taken from requestBody
-	// std::vector<boost::shared_ptr<embed> > embeds
-
 	//boost::optional <elliptics::Key> key;
 	elliptics::Key key = getKey (request);
 	uint64_t size;
-	std::string data;
 
 	uint64_t offset = request->hasArg ("offset") ? boost::lexical_cast <uint64_t> (request->getArg ("offset")) : 0;
 	unsigned int cflags = request->hasArg ("cflags") ? boost::lexical_cast <unsigned int> (request->getArg ("cflags")) : 0;
@@ -487,10 +503,26 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 	std::vector<int> groups;
 
 	int replication_count = request->hasArg ("replication-count") ? boost::lexical_cast <int> (request->getArg ("replication-count")) : 0;
-	// TODO: support embed
-	//bool embed = request->hasArg ("embed") || request->hasArg ("embed_timestamp");
 
-	getGroups (request, groups, replication_count);
+	bool embed = request->hasArg ("embed") || request->hasArg ("embed_timestamp");
+	time_t ts;
+	try {
+		ts = request->hasArg("timestamp") ? boost::lexical_cast<uint64_t>(request->getArg("timestamp")) : 0;
+	} catch (...) {
+		log ()->error ("Incorrect timestamp");
+		//throw fastcgi::HttpException (503);
+		request->setStatus (503);
+		return;
+	}
+
+	try {
+		getGroups (request, groups, replication_count);
+	} catch (const std::exception &e) {
+		log ()->error ("Exception: %s", e.what ());
+		//throw fastcgi::HttpException (503);
+		request->setStatus (503);
+		return;
+	}
 
 	if (!key.byId ()) {
 		if (request->hasArg ("prepare")) {
@@ -507,9 +539,36 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 		}
 	}
 
-	// TODO: temporary code for testing
-	//data = request->getArg ("data");
+	//std::vector <boost::shared_ptr <elliptics::embed> > embeds;
+	std::ostringstream oss (std::ios_base::binary | std::ios_base::out);
+
+	if (embed) {
+		uint32_t type;
+		uint32_t flags;
+		uint32_t size;
+		ts = dnet_bswap64 (ts);
+
+		type = dnet_bswap32 (Embed::DNET_FCGI_EMBED_TIMESTAMP);
+		flags = dnet_bswap32 (0);
+		size = dnet_bswap32 (sizeof (uint64_t));
+
+		oss.write ((const char *)&type, sizeof (uint32_t));
+		oss.write ((const char *)&flags, sizeof (uint32_t));
+		oss.write ((const char *)&size, sizeof (uint32_t));
+		oss.write ((const char *)&ts, sizeof (uint64_t));
+
+		type = dnet_bswap32 (Embed::DNET_FCGI_EMBED_DATA);
+		flags = dnet_bswap32 (0);
+		size = dnet_bswap32 (0);
+
+		oss.write ((const char *)&type, sizeof (uint32_t));
+		oss.write ((const char *)&flags, sizeof (uint32_t));
+		oss.write ((const char *)&size, sizeof (uint32_t));
+	}
+
+	std::string data;
 	request->requestBody ().toString (data);
+	data = oss.str ().append (data);
 
 	try {
 		using namespace elliptics;
@@ -517,7 +576,8 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 					key, data,
 					_offset = offset, _size = size, _cflags = cflags,
 					_ioflags = ioflags, _groups = groups,
-					_replication_count = replication_count);
+					_replication_count = replication_count//,
+					/*_embeds = embeds*/);
 		log ()->debug ("HANDLER upload success");
 
 		request->setStatus (200);
@@ -549,42 +609,38 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 void Proxy::getHandler(fastcgi::Request *request) {
 	elliptics::Key key = getKey (request);
 
-	// TODO: embed
-	/*
-		uint64_t ts = 0;
-		if (request->hasArg("embed") || request->hasArg("embed_timestamp")) {
-			size_t size = result.size();
-			size_t offset = 0;
+	elliptics::ReadResult result = ellipticsProxy_->read (key);
+	request->setStatus (200);
+	request->setContentType ("text/plain");
 
-			while (size) {
-				struct dnet_common_embed *e = (struct dnet_common_embed *)(result.data() + offset);
+	std::istringstream iss (result.data, std::ios_base::binary | std::ios_base::in);
 
-				dnet_common_convert_embedded(e);
+	bool embed = request->hasArg("embed") || request->hasArg("embed_timestamp");
 
-				if (size < sizeof(struct dnet_common_embed)) {
-					std::ostringstream str;
-					str << filename << ": offset: " << offset << ", size: " << size << ": invalid size";
-					throw std::runtime_error(str.str());
-				}
+	time_t timestamp = 0;
 
-				offset += sizeof(struct dnet_common_embed);
-				size -= sizeof(struct dnet_common_embed);
+	if (embed) {
+		uint32_t type;
+		uint32_t flags;
+		uint32_t size;
 
-				if (size < e->size + sizeof (struct dnet_common_embed)) {
-					break;
-				}
+		do {
+			iss.read ((char *)&type, sizeof (uint32_t));
+			iss.read ((char *)&flags, sizeof (uint32_t));
+			iss.read ((char *)&size, sizeof (uint32_t));
 
-				if (e->type == DNET_FCGI_EMBED_TIMESTAMP) {
-					uint64_t *ptr = (uint64_t *)e->data;
+			type = dnet_bswap32 (type);
+			flags = dnet_bswap32 (flags);
+			size = dnet_bswap32 (size);
 
-					ts = dnet_bswap64(ptr[0]);
-				}
-
-				if (e->type == DNET_FCGI_EMBED_DATA) {
-					size = e->size;
-					break;
-				}
-
+			if (type == Embed::DNET_FCGI_EMBED_TIMESTAMP) {
+				iss.read ((char *)&timestamp, sizeof (uint64_t));
+				timestamp = dnet_bswap64 (timestamp);
+			} else if (type == Embed::DNET_FCGI_EMBED_DATA) {
+				break;
+			}
+			// TODO:
+			/*
 				if (e->type > DNET_FCGI_EMBED_TIMESTAMP) {
 					int http_status = 200;
 					bool allowed = true;
@@ -600,21 +656,22 @@ void Proxy::getHandler(fastcgi::Request *request) {
 						}
 					}
 				}
+			  */
+		} while (!iss.eof ());
+	}
 
-				offset += e->size;
-				size -= e->size;
-			}
-			result = result.substr(offset, std::string::npos);
-		}
-*/
+	const char * rd = result.data.data ();
+	const char *b = rd + iss.tellg ();
+	const char *e = rd + result.data.length ();
 
-	elliptics::ReadResult result = ellipticsProxy_->read (key);
-	request->setStatus (200);
-	request->setContentType ("text/plain");
+	char ts_str[128];
+	struct tm tmp;
+	strftime(ts_str, sizeof (ts_str), "%a, %d %b %Y %T %Z", gmtime_r(&timestamp, &tmp));
+	request->setHeader("Last-Modified", ts_str);
+
 	request->setHeader ("Content-Length",
-						boost::lexical_cast <std::string> (result.data.length ()));
-	request->setHeader ("Data", result.data);
-	request->write (result.data.c_str (), result.data.length ());
+						boost::lexical_cast <std::string> (e - b));
+	request->write (b, e - b);
 }
 
 void Proxy::deleteHandler(fastcgi::Request *request) {
@@ -653,7 +710,13 @@ void Proxy::deleteHandler(fastcgi::Request *request) {
 void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	elliptics::Key key = getKey (request);
 	std::vector <int> groups;
-	getGroups (request, groups);
+
+	try {
+		getGroups (request, groups);
+	} catch (const std::exception &e) {
+		log ()->error ("Exception: %s", e.what ());
+		throw fastcgi::HttpException (503);
+	}
 
 	elliptics::LookupResult lr = ellipticsProxy_->lookup (key, elliptics::_groups = groups);
 
@@ -662,8 +725,7 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	std::string region = "-1";
 
 	// TODO: regional part
-	// TODO: add cokie
-	// TODO: transpose ip to name
+	// TODO: add cokie info
 
 	ss << "<download-info>";
 	//ss << "<ip>" << request->getRemoteAddr () << "</ip>";
