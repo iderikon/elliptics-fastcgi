@@ -9,6 +9,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wall -pedantic -std=c++0x")
 set(SOURCES 
 	${PROJECT_SOURCE_DIR}/src/proxy.hpp
 	${PROJECT_SOURCE_DIR}/src/proxy.cpp
+	${PROJECT_SOURCE_DIR}/src/embed_processor.hpp
+	${PROJECT_SOURCE_DIR}/src/embed_processor.cpp
+	${PROJECT_SOURCE_DIR}/src/component_base.hpp
+	${PROJECT_SOURCE_DIR}/src/component_base.cpp
 	)
 
 add_library(${TARGET} MODULE ${SOURCES})

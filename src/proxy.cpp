@@ -11,25 +11,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/optional/optional.hpp>
 
-class Embed : public elliptics::embed {
-public:
-	const std::string pack () const {
-		const size_t buf_size = 3 * sizeof (uint32_t) + data.size ();
-		std::vector <char> vb (buf_size);
-		char *buf = vb.data ();
-		uint32_t *pdata = (uint32_t *)buf;
-		*pdata++ = type;
-		*pdata++ = flags;
-		*pdata++ = data.size ();
-		//strcpy ((char *)pdata, data.c_str ());
-		memcpy (pdata, data.c_str (), data.size ());
-		return std::string (vb.begin (), vb.end ());
-	}
-
-	const static uint32_t DNET_FCGI_EMBED_DATA = 1;
-	const static uint32_t DNET_FCGI_EMBED_TIMESTAMP = 2;
-};
-
 static size_t paramsNum (Proxy::Tokenizer &tok) {
 	size_t result = 0;
 	for (auto it = ++tok.begin (), end = tok.end (); end != it; ++it) {
@@ -116,25 +97,77 @@ static elliptics::Key getKey (fastcgi::Request *request) {
 	}
 }
 
+namespace detail {
+
+template <size_t size>
+struct BSwap {};
+
+template <>
+struct BSwap <2> {
+	template <typename T>
+	static void process (T &ob) {
+		ob = dnet_bswap16 (ob);
+	}
+};
+
+template <>
+struct BSwap <4> {
+	template <typename T>
+	static void process (T &ob) {
+		ob = dnet_bswap32 (ob);
+	}
+};
+
+template <>
+struct BSwap <8> {
+	template <typename T>
+	static void process (T &ob) {
+		ob = dnet_bswap64 (ob);
+	}
+};
+
+} // namespace detail
+
+
+struct BSwap {
+	template <typename T>
+	static void process (T &ob) {
+		detail::BSwap <sizeof (T)>::process (ob);
+	}
+};
+
+template <typename T>
+static void bwriteToSS (std::ostringstream &oss, T ob) {
+	BSwap::process (ob);
+	oss.write ((const char *)&ob, sizeof (T));
+}
+
+template <typename T>
+static void breadFromSS (std::istringstream &iss, T &ob) {
+	iss.read ((char *)&ob, sizeof (T));
+	BSwap::process (ob);
+}
+
 Proxy::Proxy (fastcgi::ComponentContext *context)
-	: fastcgi::Component(context)
+	: ComponentBase (context)
 {}
 
 Proxy::~Proxy () {
 }
 
 void Proxy::onLoad () {
+	ComponentBase::onLoad ();
 	const fastcgi::Config *config = context ()->getConfig ();
 	std::string path(context()->getComponentXPath());
 
 	elliptics::EllipticsProxy::config elconf;
 	std::vector<std::string> names;
 
-	logger_ = context()->findComponent<fastcgi::Logger>(config->asString(path + "/logger"));
+	/*logger_ = context()->findComponent<fastcgi::Logger>(config->asString(path + "/logger"));
 
 	if (!logger_) {
 		throw std::logic_error("can't find logger");
-	}
+	}*/
 
 	elconf.state_num = config->asInt(path + "/dnet/die-limit");
 	elconf.base_port = config->asInt(path + "/dnet/base-port");
@@ -268,88 +301,32 @@ void Proxy::onLoad () {
 
 	elconf.cocaine_config = config->asString (path + "/dnet/cocaine_config", "");
 
-
+	// TODO:
 	//std::string			ns;
 	//int					group_weights_refresh_period;
 
-	// TODO: HAVE_METABASE
-	/*
-#ifdef HAVE_METABASE
-	metabase_current_stamp_ = 0;
-	metabase_usage_ = DNET_FCGI_META_NONE;
-	names.clear();
-	config->subKeys(path + "/metabase/addr", names);
-	if (names.size() > 0) {
-		try {
-			metabase_context_.reset(new zmq::context_t(config->asInt(path + "/metabase/net_threads", 1)));
-			metabase_socket_.reset(new zmq::socket_t(*metabase_context_, ZMQ_DEALER));
-
-			// Disable linger so that the socket won't hang for eternity waiting for the peer
-			int linger = 0;
-			metabase_socket_->setsockopt(ZMQ_LINGER, &linger, sizeof(linger));
-
-			for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
-				log()->debug("connecting to zmq host %s", config->asString(it->c_str()).c_str());
-				metabase_socket_->connect(config->asString(it->c_str()).c_str());
-			}
-
-			// Default timeout is 100ms
-			metabase_timeout_ = config->asInt(path + "/metabase/timeout", 100 * 1000);
-
-			std::string cfg_metabase_usage = config->asString(path + "/metabase/usage", "normal");
-			if (!cfg_metabase_usage.compare("normal")) {
-				metabase_usage_ = DNET_FCGI_META_NORMAL;
-			} else if (!cfg_metabase_usage.compare("optional")) {
-				metabase_usage_ = DNET_FCGI_META_OPTIONAL;
-			} else if (!cfg_metabase_usage.compare("mandatory")) {
-				metabase_usage_ = DNET_FCGI_META_MANDATORY;
-			} else {
-				throw std::runtime_error(std::string("Incorrect metabase usage type: ") + cfg_metabase_usage);
-			}
-			log()->debug("cfg_metabase_usage %s, metabase_usage_ %d", cfg_metabase_usage.c_str(), metabase_usage_);
-
-		}
-		catch (const std::exception &e) {
-			log()->error("can not connect to metabase: %s", e.what());
-			metabase_socket_.release();
-		}
-		catch (...) {
-			log()->error("can not connect to metabase");
-			metabase_socket_.release();
-		}
-	}
-
-#endif
-*/
-
-	// TODO: embed_processors
-	/*
-	names.clear();
-	config->subKeys(path + "/embed_processors/processor", names);
-	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
-		EmbedProcessorModuleBase *processor = context()->findComponent<EmbedProcessorModuleBase>(config->asString(*it + "/name"));
+	names.clear ();
+	config->subKeys (path + "/embed_processors/processor", names);
+	for (std::vector<std::string>::iterator it = names.begin (), end = names.end (); end != it; ++it) {
+		EmbedProcessorModuleBase *processor = context ()->findComponent <EmbedProcessorModuleBase> (config->asString (*it + "/name"));
 		if (!processor) {
-			log()->error("Embed processor %s doesn't exists in config", config->asString(*it + "/name").c_str());
+			log()->error ("Embed processor %s doesn't exists in config", config->asString(*it + "/name").c_str());
 		} else {
-					embed_processors_.push_back(std::make_pair(config->asInt(*it + "/type"), processor));
+			embed_processors_.insert (std::make_pair (config->asInt (*it + "/type"), processor));
 		}
 	}
-	*/
 
-	// TODO: allow-origin
-	/*
-	names.clear();
-	config->subKeys(path + "/dnet/allow-origin/domains/domain", names);
-	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
-		allow_origin_domains_.insert(config->asString(it->c_str()));
+	names.clear ();
+	config->subKeys (path + "/dnet/allow-origin/domains/domain", names);
+	for (std::vector <std::string>::iterator it = names.begin (), end = names.end (); end != it; ++it) {
+		allow_origin_domains_.insert (config->asString (it->c_str ()));
 	}
 
-	names.clear();
-	config->subKeys(path + "/dnet/allow-origin/handlers/handler", names);
-	for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
-		allow_origin_handlers_.insert(config->asString(it->c_str()));
+	names.clear ();
+	config->subKeys (path + "/dnet/allow-origin/handlers/handler", names);
+	for (std::vector<std::string>::iterator it = names.begin (), end = names.end (); end != it; ++it) {
+		allow_origin_handlers_.insert (config->asString (it->c_str ()));
 	}
-*/
 
 
 	log ()->debug ("HANDLE create elliptics proxy");
@@ -366,28 +343,12 @@ void Proxy::onLoad () {
 }
 
 void Proxy::onUnload () {
+	ComponentBase::onUnload ();
 }
 
 void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *context) {
 	(void)context;
 	log ()->debug ("Handling request: %s", request->getScriptName ().c_str ());
-
-	/*std::string content;
-	request->requestBody().toString(content);
-
-	request->setStatus (200);
-	request->setContentType ("text/plain");
-
-	std::stringstream ss;
-	ss << "Content: \n" << content << std::endl
-	   << "Script name: " << request->getScriptName () << std::endl;
-	content = ss.str ();
-
-	request->setHeader ("Content-Length",
-						boost::lexical_cast <std::string> (content.length ()));
-	request->write (content.c_str (), content.length ());
-	request->setHeader ("Data", content);
-	return;*/
 
 	try {
 		std::string handler;
@@ -460,11 +421,10 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 			request->setHeader ("Data", content);
 			return;*/
 		}
-#if 0
+
 		if (allow_origin_handlers_.end() != allow_origin_handlers_.find(handler)) {
 			allowOrigin(request);
 		}
-#endif
 
 		log ()->debug ("Process request <%s>", handler.c_str ());
 		(this->*it->second)(request);
@@ -477,10 +437,6 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 		log ()->debug ("Exception: unknown");
 		throw fastcgi::HttpException(501);
 	}
-}
-
-fastcgi::Logger *Proxy::log() const {
-	return logger_;
 }
 
 void Proxy::registerHandler (const char *name, Proxy::RequestHandler handler) {
@@ -542,27 +498,14 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 	std::ostringstream oss (std::ios_base::binary | std::ios_base::out);
 
 	if (embed) {
-		uint32_t type;
-		uint32_t flags;
-		uint32_t size;
-		ts = dnet_bswap64 (ts);
+		bwriteToSS <uint32_t> (oss, EmbedProcessorModuleBase::DNET_FCGI_EMBED_TIMESTAMP);
+		bwriteToSS <uint32_t> (oss, 0);
+		bwriteToSS <uint32_t> (oss, sizeof (uint32_t));
+		bwriteToSS <time_t> (oss, ts);
 
-		type = dnet_bswap32 (Embed::DNET_FCGI_EMBED_TIMESTAMP);
-		flags = dnet_bswap32 (0);
-		size = dnet_bswap32 (sizeof (uint64_t));
-
-		oss.write ((const char *)&type, sizeof (uint32_t));
-		oss.write ((const char *)&flags, sizeof (uint32_t));
-		oss.write ((const char *)&size, sizeof (uint32_t));
-		oss.write ((const char *)&ts, sizeof (uint64_t));
-
-		type = dnet_bswap32 (Embed::DNET_FCGI_EMBED_DATA);
-		flags = dnet_bswap32 (0);
-		size = dnet_bswap32 (0);
-
-		oss.write ((const char *)&type, sizeof (uint32_t));
-		oss.write ((const char *)&flags, sizeof (uint32_t));
-		oss.write ((const char *)&size, sizeof (uint32_t));
+		bwriteToSS <uint32_t> (oss, EmbedProcessorModuleBase::DNET_FCGI_EMBED_DATA);
+		bwriteToSS <uint32_t> (oss, 0);
+		bwriteToSS <uint32_t> (oss, 0);
 	}
 
 	std::string data;
@@ -644,38 +587,28 @@ void Proxy::getHandler(fastcgi::Request *request) {
 		uint32_t size;
 
 		do {
-			iss.read ((char *)&type, sizeof (uint32_t));
-			iss.read ((char *)&flags, sizeof (uint32_t));
-			iss.read ((char *)&size, sizeof (uint32_t));
+			breadFromSS <uint32_t> (iss, type);
+			breadFromSS <uint32_t> (iss, flags);
+			breadFromSS <uint32_t> (iss, size);
 
-			type = dnet_bswap32 (type);
-			flags = dnet_bswap32 (flags);
-			size = dnet_bswap32 (size);
-
-			if (type == Embed::DNET_FCGI_EMBED_TIMESTAMP) {
-				iss.read ((char *)&timestamp, sizeof (uint64_t));
-				timestamp = dnet_bswap64 (timestamp);
-			} else if (type == Embed::DNET_FCGI_EMBED_DATA) {
+			if (type == EmbedProcessorModuleBase::DNET_FCGI_EMBED_TIMESTAMP) {
+				breadFromSS <time_t> (iss, timestamp);
+			} else if (type == EmbedProcessorModuleBase::DNET_FCGI_EMBED_DATA) {
 				break;
-			}
-			// TODO:
-			/*
-				if (e->type > DNET_FCGI_EMBED_TIMESTAMP) {
+			} else {
+				auto it = embed_processors_.find (type);
+				if (it != embed_processors_.end ()) {
+					std::vector <char> buf (size);
+					if (size != 0)
+						iss.read (buf.data (), size);
 					int http_status = 200;
-					bool allowed = true;
-										for (size_t i = 0; i < embed_processors_.size(); i++) {
-						if (embed_processors_[i].first == e->type) {
-							log()->debug("Found embed processor for type %d", e->type);
-							allowed = embed_processors_[i].second->processEmbed(request, *e, http_status);
-							log()->debug("After embed processor http status %d, allowed %d", http_status, allowed);
-						}
-						if (!allowed) {
-							request->setStatus(http_status);
-							return;
-						}
+					if (it->second->processEmbed (request, flags, buf.data (), size, http_status)) {
+						request->setStatus (http_status);
+						return;
 					}
 				}
-			  */
+
+			}
 		} while (!iss.eof ());
 	}
 
@@ -760,3 +693,48 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	request->setContentType ("text/xml");
 	request->write (str.c_str (), str.length ());
 }
+
+void Proxy::allowOrigin(fastcgi::Request *request) const {
+	if (0 == allow_origin_domains_.size ()) {
+		return;
+	}
+
+	if (!request->hasHeader ("Origin")) {
+		return;
+	}
+
+	std::string domain = request->getHeader ("Origin");
+	if (!domain.compare (0, sizeof ("http://") - 1, "http://")) {
+		domain = domain.substr(sizeof ("http://") - 1, std::string::npos);
+	}
+
+	for (std::set<std::string>::const_iterator it = allow_origin_domains_.begin (), end = allow_origin_domains_.end ();
+		 end != it; ++it) {
+		std::string allow_origin_domain = *it;
+
+		if (domain.length () < allow_origin_domain.length () - 1) {
+			continue;
+		}
+
+		bool allow = false;
+
+		if (domain.length () == allow_origin_domain.length () - 1) {
+			allow = !allow_origin_domain.compare (1, std::string::npos, domain);
+		}
+		else {
+			allow = !domain.compare(domain.length () - allow_origin_domain.length (), std::string::npos, allow_origin_domain);
+		}
+
+		if (allow) {
+			domain = (!request->getHeader ("Origin").compare(0, sizeof ("https://") - 1, "https://") ? "https://" : "http://") + domain;
+			request->setHeader ("Access-Control-Allow-Origin", domain);
+			request->setHeader ("Access-Control-Allow-Credentials", "true");
+			return;
+		}
+	}
+	throw fastcgi::HttpException (403);
+}
+
+FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
+FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", Proxy)
+FCGIDAEMON_REGISTER_FACTORIES_END()

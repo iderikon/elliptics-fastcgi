@@ -1,7 +1,6 @@
 #ifndef PROXY_HPP_MODULE
 #define PROXY_HPP_MODULE
 
-#include <fastcgi2/component.h>
 #include <fastcgi2/component_factory.h>
 #include <fastcgi2/handler.h>
 #include <fastcgi2/request.h>
@@ -15,8 +14,11 @@
 #include <map>
 #include <set>
 
-class Proxy : 
-	  virtual public fastcgi::Component
+#include "component_base.hpp"
+#include "embed_processor.hpp"
+
+class Proxy :
+	virtual public ComponentBase
 	, virtual public fastcgi::Handler
 {
 private:
@@ -36,8 +38,6 @@ public:
 	virtual void handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *context);
 
 private:
-	fastcgi::Logger *log () const;
-
 	void registerHandler (const char *name, RequestHandler handler);
 
 	void uploadHandler (fastcgi::Request *request);
@@ -45,7 +45,8 @@ private:
 	void deleteHandler (fastcgi::Request *request);
 	void downloadInfoHandler (fastcgi::Request *request);
 
-	fastcgi::Logger *logger_;
+	void allowOrigin (fastcgi::Request *request) const;
+
 	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
 
 	RequestHandlers handlers_;
@@ -54,11 +55,10 @@ private:
 
 	std::set <std::string> deny_list_;
 	std::set <std::string> allow_list_;
-	std::map<std::string, std::string> typemap_;
+	std::map <std::string, std::string> typemap_;
+	std::map <uint32_t, EmbedProcessorModuleBase *> embed_processors_;
+	std::set <std::string> allow_origin_domains_;
+	std::set <std::string> allow_origin_handlers_;
 };
-
-FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
-FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", Proxy)
-FCGIDAEMON_REGISTER_FACTORIES_END()
 
 #endif /* PROXY_HPP_MODULE */
