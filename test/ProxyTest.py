@@ -55,16 +55,13 @@ def test2 ():
 	filename = "file1.txt"
 	data = "Test data"
 	print "*INFO* Prepare"
-	#r = prepare_file (filename, data [:2], len (data))
-	r = prepare_file (filename, "Te", 9)
+	r = prepare_file (filename, data [:2], len (data))
 	request_successful (r)
-	print "*INFO* Plainr write"
-	#r = plain_write_file (filename, data [2:6], 2)
-	r = plain_write_file (filename, "st d", 2)
+	print "*INFO* Plain write"
+	r = plain_write_file (filename, data [2:6], 2)
 	request_successful (r)
 	print "*INFO* Commit"
-	#r = commit_file (filename, data [6:], 6)
-	r = commit_file (filename, "ata", 6)
+	r = commit_file (filename, data [6:], 6)
 	request_successful (r)
 	print "*INFO* Verify"
 	verify_data (filename, data)
