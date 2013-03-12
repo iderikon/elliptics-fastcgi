@@ -482,13 +482,13 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 	if (!key.byId ()) {
 		if (request->hasArg ("prepare")) {
 			size = boost::lexical_cast<uint64_t>(request->getArg("prepare"));
-			ioflags = DNET_IO_FLAGS_PREPARE;
+            ioflags |= DNET_IO_FLAGS_PREPARE;
 		} else if (request->hasArg ("commit")) {
 			size = 0;
-			ioflags = DNET_IO_FLAGS_COMMIT;
-		} else if (request->hasArg ("plain_write")) {
+            ioflags |= DNET_IO_FLAGS_COMMIT;
+        } else if (request->hasArg ("plain_write") || request->hasArg ("plain-write")) {
 			size = 0;
-			ioflags = DNET_IO_FLAGS_PLAIN_WRITE;
+            ioflags |= DNET_IO_FLAGS_PLAIN_WRITE;
 		} else {
 			size = 0;
 		}
@@ -571,7 +571,31 @@ void Proxy::getHandler(fastcgi::Request *request) {
 		}
 	}
 
-	elliptics::ReadResult result = ellipticsProxy_->read (key);
+	uint64_t offset = request->hasArg ("offset") ? boost::lexical_cast <uint64_t> (request->getArg ("offset")) : 0;
+	unsigned int cflags = request->hasArg ("cflags") ? boost::lexical_cast <unsigned int> (request->getArg ("cflags")) : 0;
+	unsigned int ioflags = request->hasArg ("ioflags") ? boost::lexical_cast <unsigned int> (request->getArg ("ioflags")) : 0;
+	uint64_t size = request->hasArg ("size") ? boost::lexical_cast <uint64_t> (request->getArg ("size")) : 0;
+
+	std::vector<int> groups;
+
+	try {
+		getGroups (request, groups);
+	} catch (const std::exception &e) {
+		log ()->error ("Exception: %s", e.what ());
+		//throw fastcgi::HttpException (503);
+		request->setStatus (503);
+		return;
+	}
+
+
+	elliptics::ReadResult result;
+	{
+		using namespace elliptics;
+		result = ellipticsProxy_->read (key,
+										_offset = offset, _cflags = cflags,
+										_ioflags = ioflags, _size = size,
+										_groups = groups);
+	}
 	request->setStatus (200);
 	request->setContentType (content_type);
 
