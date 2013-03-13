@@ -30,6 +30,11 @@ public:
 	typedef boost::char_separator <char> Separator;
 	typedef boost::tokenizer <Separator> Tokenizer;
 
+	struct Signature {
+		std::string path;
+		std::string key;
+	};
+
 	Proxy (fastcgi::ComponentContext *context);
 	virtual ~Proxy ();
 
@@ -47,7 +52,7 @@ private:
 
 	void allowOrigin (fastcgi::Request *request) const;
 
-	boost::shared_ptr  <elliptics::EllipticsProxy> ellipticsProxy_;
+	boost::shared_ptr <elliptics::EllipticsProxy> ellipticsProxy_;
 
 	RequestHandlers handlers_;
 
@@ -59,6 +64,7 @@ private:
 	std::map <uint32_t, EmbedProcessorModuleBase *> embed_processors_;
 	std::set <std::string> allow_origin_domains_;
 	std::set <std::string> allow_origin_handlers_;
+	std::vector <Signature> signatures_;
 };
 
 #endif /* PROXY_HPP_MODULE */

@@ -6,10 +6,14 @@
 #include <cstring>
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include <string>
+#include <chrono>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/optional/optional.hpp>
+
+#include <openssl/md5.h>
 
 static size_t paramsNum (Proxy::Tokenizer &tok) {
 	size_t result = 0;
@@ -17,6 +21,28 @@ static size_t paramsNum (Proxy::Tokenizer &tok) {
 		++result;
 	}
 	return result;
+}
+
+static std::string md5 (const std::string &source) {
+	MD5_CTX md5handler;
+	unsigned char md5buffer [16];
+
+	MD5_Init (&md5handler);
+	MD5_Update (&md5handler, (unsigned char *)source.c_str (), source.length ());
+	MD5_Final (md5buffer, &md5handler);
+
+	char alpha [16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+	unsigned char c;
+	std::string md5digest;
+	md5digest.reserve (32);
+	for (int i = 0; i < 16; ++i) {
+		c = (md5buffer [i] & 0xf0) >> 4;
+		md5digest.push_back (alpha [c]);
+		c = (md5buffer [i] & 0xf);
+		md5digest.push_back (alpha [c]);
+	}
+
+	return md5digest;
 }
 
 static void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) {
@@ -59,7 +85,7 @@ static void getGroups (fastcgi::Request *request, std::vector <int> &groups, int
 		}
 		catch (...) {
 			//log ()->debug ("Exception: groups <%s> is incorrect",
-			  //             request->getArg ("groups").c_str ());
+			  //			 request->getArg ("groups").c_str ());
 			//throw fastcgi::HttpException (503);
 			std::stringstream ss;
 			ss << "groups <" << request->getArg ("groups") << "> is incorrect";
@@ -163,12 +189,6 @@ void Proxy::onLoad () {
 	elliptics::EllipticsProxy::config elconf;
 	std::vector<std::string> names;
 
-	/*logger_ = context()->findComponent<fastcgi::Logger>(config->asString(path + "/logger"));
-
-	if (!logger_) {
-		throw std::logic_error("can't find logger");
-	}*/
-
 	elconf.state_num = config->asInt(path + "/dnet/die-limit");
 	elconf.base_port = config->asInt(path + "/dnet/base-port");
 	write_port_ = config->asInt(path + "/dnet/write-port", 9000);
@@ -179,35 +199,15 @@ void Proxy::onLoad () {
 	elconf.chunk_size = config->asInt(path + "/dnet/chunk_size", 0);
 	if (elconf.chunk_size < 0) elconf.chunk_size = 0;
 
-	// TODO: cookie
-	/*
-	names.clear();
-	config->subKeys(path + "/dnet/cookie/sign", names);
-	use_cookie_ = !names.empty();
 
-	if (use_cookie_) {
-		cookie_name_ = config->asString(path + "/dnet/cookie/name", "");
-		if (!cookie_name_.empty()) {
-			cookie_key_ = config->asString(path + "/dnet/cookie/key");
-			cookie_path_ = config->asString(path + "/dnet/cookie/path");
-			cookie_domain_ = config->asString(path + "/dnet/cookie/domain");
-			cookie_expires_ = config->asInt(path + "/dnet/cookie/expires");
-		}
-
-		names.clear();
-		config->subKeys(path + "/dnet/cookie/sign", names);
-		for (std::vector<std::string>::iterator it = names.begin(), end = names.end(); end != it; ++it) {
-			EllipticsProxy::cookie_sign cookie_;
-
-			cookie_.path = config->asString(*it + "/path");
-			cookie_.sign_key = config->asString(*it + "/sign_key");
-
-			log()->debug("cookie %s path %s", it->c_str(), cookie_.path.c_str());
-			cookie_signs_.push_back(cookie_);
-		}
+	names.clear ();
+	config->subKeys (path + "/dnet/signs/sign", names);
+	for (auto it = names.begin (), end = names.end (); it != end; ++it) {
+		Signature sign;
+		sign.path = config->asString (*it + "/path");
+		sign.key = config->asString (*it + "/key");
+		signatures_.push_back (sign);
 	}
-*/
-
 
 	elconf.log_path = config->asString(path + "/dnet/log/path");
 	elconf.log_mask = config->asInt(path + "/dnet/log/mask");
@@ -482,13 +482,13 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 	if (!key.byId ()) {
 		if (request->hasArg ("prepare")) {
 			size = boost::lexical_cast<uint64_t>(request->getArg("prepare"));
-            ioflags |= DNET_IO_FLAGS_PREPARE;
+			ioflags |= DNET_IO_FLAGS_PREPARE;
 		} else if (request->hasArg ("commit")) {
 			size = 0;
-            ioflags |= DNET_IO_FLAGS_COMMIT;
-        } else if (request->hasArg ("plain_write") || request->hasArg ("plain-write")) {
+			ioflags |= DNET_IO_FLAGS_COMMIT;
+		} else if (request->hasArg ("plain_write") || request->hasArg ("plain-write")) {
 			size = 0;
-            ioflags |= DNET_IO_FLAGS_PLAIN_WRITE;
+			ioflags |= DNET_IO_FLAGS_PLAIN_WRITE;
 		} else {
 			size = 0;
 		}
@@ -700,15 +700,47 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	ss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
 	std::string region = "-1";
 
-	// TODO: regional part
-	// TODO: add cokie info
+	// TODO: add regional part
+
+	long time;
+	{
+		using namespace std::chrono;
+		time = duration_cast <microseconds> (
+					system_clock::now ().time_since_epoch ()
+					).count ();
+	}
+
+	std::string sign;
+	std::string full_path = "/" + getFilename (request);
+	for (auto it = signatures_.begin (), end = signatures_.end ();
+		 it != end; ++it) {
+
+		if (full_path.size () < it->path.size ())
+			continue;
+
+		if (full_path.compare(0, it->path.size (),
+							  it->path, 0, it->path.size ()))
+			continue;
+
+		std::ostringstream oss;
+		oss << it->key << std::hex << time << lr.path;
+		sign = md5 (oss.str ());
+
+		break;
+	}
+
+	char tsstr[32];
+	snprintf(tsstr, sizeof (tsstr), "%lx", time);
+
 
 	ss << "<download-info>";
 	//ss << "<ip>" << request->getRemoteAddr () << "</ip>";
 	ss << "<host>" << lr.hostname << "</host>";
 	ss << "<path>" << lr.path << "</path>";
-	ss << "<group>" << lr.group << "</group>";
+	//ss << "<group>" << lr.group << "</group>";
+	ss << "<ts>" << tsstr << "</ts>";
 	ss << "<region>" << region << "</region>";
+	ss << "<s>" << sign << "</s>";
 	ss << "</download-info>";
 
 	std::string str = ss.str ();
