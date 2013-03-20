@@ -64,7 +64,6 @@ private:
 	std::map <uint32_t, EmbedProcessorModuleBase *> embed_processors_;
 	std::set <std::string> allow_origin_domains_;
 	std::set <std::string> allow_origin_handlers_;
-	std::vector <Signature> signatures_;
 };
 
 #endif /* PROXY_HPP_MODULE */

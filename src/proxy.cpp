@@ -23,28 +23,6 @@ static size_t paramsNum (Proxy::Tokenizer &tok) {
 	return result;
 }
 
-static std::string md5 (const std::string &source) {
-	MD5_CTX md5handler;
-	unsigned char md5buffer [16];
-
-	MD5_Init (&md5handler);
-	MD5_Update (&md5handler, (unsigned char *)source.c_str (), source.length ());
-	MD5_Final (md5buffer, &md5handler);
-
-	char alpha [16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
-	unsigned char c;
-	std::string md5digest;
-	md5digest.reserve (32);
-	for (int i = 0; i < 16; ++i) {
-		c = (md5buffer [i] & 0xf0) >> 4;
-		md5digest.push_back (alpha [c]);
-		c = (md5buffer [i] & 0xf);
-		md5digest.push_back (alpha [c]);
-	}
-
-	return md5digest;
-}
-
 static void dnet_parse_numeric_id (const std::string &value, struct dnet_id &id) {
 	unsigned char ch[5];
 	unsigned int i, len = value.size ();
@@ -199,15 +177,6 @@ void Proxy::onLoad () {
 	elconf.chunk_size = config->asInt(path + "/dnet/chunk_size", 0);
 	if (elconf.chunk_size < 0) elconf.chunk_size = 0;
 
-
-	names.clear ();
-	config->subKeys (path + "/dnet/signs/sign", names);
-	for (auto it = names.begin (), end = names.end (); it != end; ++it) {
-		Signature sign;
-		sign.path = config->asString (*it + "/path");
-		sign.key = config->asString (*it + "/key");
-		signatures_.push_back (sign);
-	}
 
 	elconf.log_path = config->asString(path + "/dnet/log/path");
 	elconf.log_mask = config->asInt(path + "/dnet/log/mask");
@@ -710,37 +679,12 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 					).count ();
 	}
 
-	std::string sign;
-	std::string full_path = "/" + getFilename (request);
-	for (auto it = signatures_.begin (), end = signatures_.end ();
-		 it != end; ++it) {
-
-		if (full_path.size () < it->path.size ())
-			continue;
-
-		if (full_path.compare(0, it->path.size (),
-							  it->path, 0, it->path.size ()))
-			continue;
-
-		std::ostringstream oss;
-		oss << it->key << std::hex << time << lr.path;
-		sign = md5 (oss.str ());
-
-		break;
-	}
-
-	char tsstr[32];
-	snprintf(tsstr, sizeof (tsstr), "%lx", time);
-
-
 	ss << "<download-info>";
 	//ss << "<ip>" << request->getRemoteAddr () << "</ip>";
 	ss << "<host>" << lr.hostname << "</host>";
 	ss << "<path>" << lr.path << "</path>";
 	//ss << "<group>" << lr.group << "</group>";
-	ss << "<ts>" << tsstr << "</ts>";
 	ss << "<region>" << region << "</region>";
-	ss << "<s>" << sign << "</s>";
 	ss << "</download-info>";
 
 	std::string str = ss.str ();
