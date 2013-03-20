@@ -1,0 +1,13 @@
+Source: proxy
+Section: net
+Priority: optional
+Maintainer: Artem Sokolov <derikon@yandex-team.ru>
+Build-Depends: debhelper (>=5),
+ cdbs,
+ libelliptics-proxy-dev (>= 0.1.5),
+Standards-Version: 3.9.1
+
+Package: proxy
+Architecture: any
+Depends: ${shlibs:Depends} 
+Description: New proxy with elliptics support
