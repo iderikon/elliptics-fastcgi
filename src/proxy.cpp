@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iostream>
 #include <iomanip>
+#include <iterator>
 #include <string>
 #include <chrono>
 
@@ -307,6 +308,8 @@ void Proxy::onLoad () {
 	registerHandler ("get", &Proxy::getHandler);
 	registerHandler ("delete", &Proxy::deleteHandler);
 	registerHandler ("download-info", &Proxy::downloadInfoHandler);
+	registerHandler ("bulk-write", &Proxy::bulkUploadHandler);
+	registerHandler ("bulk-read", &Proxy::bulkGetHandler);
 
 	log ()->debug ("HANDLE handles are registred");
 }
@@ -692,6 +695,115 @@ void Proxy::downloadInfoHandler(fastcgi::Request *request) {
 	request->setStatus (200);
 	request->setContentType ("text/xml");
 	request->write (str.c_str (), str.length ());
+}
+
+void Proxy::bulkUploadHandler(fastcgi::Request *request)
+{
+	std::vector <std::string> file_names;
+	request->remoteFiles (file_names);
+	std::vector <elliptics::Key> keys;
+	std::vector <std::string> data;
+
+	for (auto it = file_names.begin (), end = file_names.end (); it != end; ++it) {
+		std::string content;
+		request->remoteFile (*it).toString (content);
+		keys.emplace_back (*it, 0);
+		data.push_back (content);
+	}
+
+	unsigned int cflags = request->hasArg ("cflags") ? boost::lexical_cast <unsigned int> (request->getArg ("cflags")) : 0;
+	int replication_count = request->hasArg ("replication-count") ? boost::lexical_cast <int> (request->getArg ("replication-count")) : 0;
+
+	std::vector<int> groups;
+	try {
+		getGroups (request, groups, replication_count);
+	} catch (const std::exception &e) {
+		log ()->error ("Exception: %s", e.what ());
+		request->setStatus (503);
+		return;
+	}
+
+	{
+		using namespace elliptics;
+		auto results = ellipticsProxy_->bulk_write(keys, data, _cflags = cflags, _replication_count = replication_count, _groups = groups);
+
+
+		request->setStatus (200);
+
+		std::ostringstream oss;
+		oss << "writte result: " << std::endl;
+
+		for (auto it = results.begin (), end = results.end (); it != end; ++it) {
+			oss << it->first.str () << ':' << std::endl;
+			for (auto it2 = it->second.begin (), end2 = it->second.end (); it2 != end2; ++it2) {
+				oss << "\tgroup: " << it2->group << "\tpath: " << it2->hostname
+									  << ":" << it2->port << it2->path << std::endl;
+			}
+		}
+
+		std::string str = oss.str ();
+
+		request->setContentType ("text/plaint");
+		request->setHeader ("Context-Lenght",
+							boost::lexical_cast <std::string> (
+								str.length ()));
+		request->write (str.c_str (), str.size ());
+	}
+}
+
+void Proxy::bulkGetHandler(fastcgi::Request *request)
+{
+	std::string keys_str;
+	request->requestBody ().toString (keys_str);
+	std::vector <elliptics::Key> keys;
+
+	Separator sep("\n");
+	Tokenizer tok(keys_str, sep);
+
+	try {
+		for (auto it = tok.begin (), end = tok.end (); it != end; ++it) {
+			keys.push_back (*it);
+		}
+	}
+	catch (...) {
+		log()->error("invalid keys list: %s", keys_str.c_str());
+	}
+
+	unsigned int cflags = request->hasArg ("cflags") ? boost::lexical_cast <unsigned int> (request->getArg ("cflags")) : 0;
+	std::vector<int> groups;
+	try {
+		getGroups (request, groups);
+	} catch (const std::exception &e) {
+		log ()->error ("Exception: %s", e.what ());
+		request->setStatus (503);
+		return;
+	}
+
+	try {
+		auto result = ellipticsProxy_->bulk_read (keys, elliptics::_cflags = cflags, elliptics::_groups = groups);
+
+		request->setStatus (200);
+		request->setContentType ("text/html");
+		request->setHeader ("Transfer-Encoding", "chunked");
+
+		std::ostringstream oss (std::ios_base::binary | std::ios_base::out);
+		//unsigned char CRLF [2] = {0x0D, 0x0A};
+		char CRLF [] = "\r\n";
+		for (auto it = result.begin (), end = result.end (); it != end; ++it) {
+			size_t size = it->second.data.length ();
+			oss << std::hex << size << "; name=\"" << it->first.str () << "\"" << CRLF;
+			oss << it->second.data << CRLF;
+		}
+		oss << 0 << CRLF << CRLF;
+		std::string body = oss.str ();
+		request->write (body.data (), body.length ());
+	} catch (const std::exception &e) {
+		log ()->error ("Exception during bulk-read: %s", e.what ());
+		request->setStatus (503);
+	} catch (...) {
+		log ()->error ("Exception during bulk-read: unknown");
+		request->setStatus (503);
+	}
 }
 
 void Proxy::allowOrigin(fastcgi::Request *request) const {

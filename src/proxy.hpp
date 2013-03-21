@@ -49,6 +49,8 @@ private:
 	void getHandler (fastcgi::Request *request);
 	void deleteHandler (fastcgi::Request *request);
 	void downloadInfoHandler (fastcgi::Request *request);
+	void bulkUploadHandler (fastcgi::Request *request);
+	void bulkGetHandler (fastcgi::Request *request);
 
 	void allowOrigin (fastcgi::Request *request) const;
 
