@@ -89,12 +89,24 @@ static std::string getFilename (fastcgi::Request *request) {
 	}
 }
 
-static elliptics::Key getKey (fastcgi::Request *request) {
+/*static elliptics::Key getKey_ (fastcgi::Request *request) {
 	if (request->hasArg ("id")) {
 		struct dnet_id id;
 		dnet_parse_numeric_id (request->getArg ("id"), id);
 		elliptics::ID ID (id);
 		return elliptics::Key (ID);
+	} else {
+		std::string filename = getFilename (request);
+		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
+		return elliptics::Key (filename, column);
+	}
+}*/
+
+static elliptics::Key getKey (fastcgi::Request *request) {
+	if (request->hasArg ("id")) {
+		struct dnet_id id;
+		dnet_parse_numeric_id (request->getArg ("id"), id);
+		return elliptics::Key (id);
 	} else {
 		std::string filename = getFilename (request);
 		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
@@ -439,7 +451,7 @@ void Proxy::uploadHandler(fastcgi::Request *request) {
 		return;
 	}
 
-	if (!key.byId ()) {
+	if (!key.by_id ()) {
 		if (request->hasArg ("prepare")) {
 			size = boost::lexical_cast<uint64_t>(request->getArg("prepare"));
 			ioflags |= DNET_IO_FLAGS_PREPARE;
@@ -722,7 +734,7 @@ void Proxy::bulkUploadHandler(fastcgi::Request *request)
 		oss << "writte result: " << std::endl;
 
 		for (auto it = results.begin (), end = results.end (); it != end; ++it) {
-			oss << it->first.str () << ':' << std::endl;
+			oss << it->first.to_string () << ':' << std::endl;
 			for (auto it2 = it->second.begin (), end2 = it->second.end (); it2 != end2; ++it2) {
 				oss << "\tgroup: " << it2->group << "\tpath: " << it2->hostname
 									  << ":" << it2->port << it2->path << std::endl;
@@ -779,7 +791,7 @@ void Proxy::bulkGetHandler(fastcgi::Request *request)
 		char CRLF [] = "\r\n";
 		for (auto it = result.begin (), end = result.end (); it != end; ++it) {
 			size_t size = it->second.data.length ();
-			oss << std::hex << size << "; name=\"" << it->first.str () << "\"" << CRLF;
+			oss << std::hex << size << "; name=\"" << it->first.to_string () << "\"" << CRLF;
 			oss << it->second.data << CRLF;
 		}
 		oss << 0 << CRLF << CRLF;
