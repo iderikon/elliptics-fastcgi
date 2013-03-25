@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 2.6)
-set(TARGET proxy)
+set(TARGET elliptics-fastcgi)
 project(${TARGET})
-#set(${TARGET}_BINARY_DIR bin)
-#set(CMAKE_BINARY_DIR  bin)
+
+file(READ "${PROJECT_SOURCE_DIR}/debian/changelog" DEBCHANGELOG)
+
+string(REGEX MATCH "([0-9]+\\.[0-9]+.[0-9]+)" DEBFULLVERSION "${DEBCHANGELOG}")
+string(REGEX MATCH "([0-9]+\\.[0-9]+)" MAJOR_VERSION "${DEBFULLVERSION}")
+string(REGEX MATCH "([0-9]+$)" MINOR_VERSION "${DEBFULLVERSION}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wall -pedantic -std=c++0x")
 
@@ -15,7 +19,7 @@ set(SOURCES
 	${PROJECT_SOURCE_DIR}/src/component_base.cpp
 	)
 
-add_library(${TARGET} MODULE ${SOURCES})
+add_library(${TARGET} SHARED ${SOURCES})
 
 target_link_libraries(
 	${TARGET}
@@ -23,5 +27,16 @@ target_link_libraries(
 	fastcgi-daemon2 
 	)
 
-install(TARGETS ${TARGET} DESTINATION /usr/lib/fastcgi2/)
+set_target_properties(
+    ${TARGET} PROPERTIES
+        PREFIX ""
+        INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/fastcgi2"
+        VERSION "${MAJOR_VERSION}.${MINOR_VERSION}"
+    )
+
+install(
+	TARGETS
+	${TARGET}
+    LIBRARY DESTINATION lib/fastcgi2 COMPONENT runtime)
+
 

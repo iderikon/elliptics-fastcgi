@@ -310,6 +310,13 @@ void Proxy::onLoad () {
 	registerHandler ("download-info", &Proxy::downloadInfoHandler);
 	registerHandler ("bulk-write", &Proxy::bulkUploadHandler);
 	registerHandler ("bulk-read", &Proxy::bulkGetHandler);
+	registerHandler ("ping", &Proxy::pingHandler);
+	registerHandler ("stat", &Proxy::pingHandler);
+	registerHandler ("stat_log", &Proxy::statLogHandler);
+	registerHandler ("stat-log", &Proxy::statLogHandler);
+	// TODO:
+	//registerHandler("delete-bulk", &Proxy::bulkDeleteHandler);
+	//registerHandler("exec-script", &Proxy::execScriptHandler);
 
 	log ()->debug ("HANDLE handles are registred");
 }
@@ -372,26 +379,6 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 			log ()->debug ("Handle for <%s> request not found",
 						   handler.c_str ());
 			throw fastcgi::HttpException(404);
-
-			/*request->setStatus (200);
-			request->setContentType ("text/plain");
-
-			std::stringstream ss;
-			ss << "Script name: " << request->getScriptName () << std::endl
-			   << "Handler: " << handler << std::endl;
-
-			for (RequestHandlers::iterator it = handlers_.begin ();
-				 it != handlers_.end (); ++it) {
-				ss << it->first << '\t' << it->second << std::endl;
-			}
-
-			std::string content = ss.str ();
-
-			request->setHeader ("Content-Length",
-								boost::lexical_cast <std::string> (content.length ()));
-			request->write (content.c_str (), content.length ());
-			request->setHeader ("Data", content);
-			return;*/
 		}
 
 		if (allow_origin_handlers_.end() != allow_origin_handlers_.find(handler)) {
@@ -412,6 +399,7 @@ void Proxy::handleRequest (fastcgi::Request *request, fastcgi::HandlerContext *c
 }
 
 void Proxy::registerHandler (const char *name, Proxy::RequestHandler handler) {
+	log ()->debug ("Register handler: %s", name);
 	bool was_inserted = handlers_.insert (std::make_pair (name, handler)).second;
 	if (!was_inserted) {
 		log ()->error ("Repeated registration of %s handler", name);
@@ -804,6 +792,51 @@ void Proxy::bulkGetHandler(fastcgi::Request *request)
 		log ()->error ("Exception during bulk-read: unknown");
 		request->setStatus (503);
 	}
+}
+
+void Proxy::pingHandler(fastcgi::Request *request) {
+	unsigned short status_code = 200;
+	if (ellipticsProxy_->ping () == false)
+		status_code = 500;
+	request->setStatus(status_code);
+}
+
+void Proxy::statLogHandler(fastcgi::Request *request) {
+	std::vector <elliptics::StatusResult> srs = ellipticsProxy_->stat_log ();
+
+	std::ostringstream oss;
+	oss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+	oss << "<data>\n";
+
+	for (auto it = srs.begin (), end = srs.end (); it != end; ++it) {
+		elliptics::StatusResult &s = *it;
+		oss << "<stat addr=\"" << s.addr << "\" id=\"" << s.id << "\">";
+		oss << "<la>";
+		for (size_t i = 0; i != 3; ++i) {
+			oss << std::fixed << std::setprecision (2) << s.la [i];
+			if (i != 2)
+				oss << ' ';
+		}
+		oss << "</la>";
+		oss << "<memtotal>" << s.vm_total << "</memtotal>";
+		oss << "<memfree>" << s.vm_free << "</memfree>";
+		oss << "<memcached>" << s.vm_cached << "</memcached>";
+		oss << "<storage_size>" << s.storage_size << "</storage_size>";
+		oss << "<available_size>" << s.available_size << "</available_size>";
+		oss << "<files>" << s.files << "</files>";
+		oss << "<fsid>" << std::hex << s.fsid << "</fsid>";
+		oss << "</stat>";
+	}
+
+	oss << "</data>";
+
+	std::string body = oss.str ();
+	request->setStatus (200);
+	request->setContentType ("text/plaint");
+	request->setHeader ("Context-Lenght",
+						boost::lexical_cast <std::string> (
+							body.length ()));
+	request->write (body.c_str (), body.size ());
 }
 
 void Proxy::allowOrigin(fastcgi::Request *request) const {
