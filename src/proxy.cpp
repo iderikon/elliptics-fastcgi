@@ -89,19 +89,6 @@ static std::string getFilename (fastcgi::Request *request) {
 	}
 }
 
-/*static elliptics::Key getKey_ (fastcgi::Request *request) {
-	if (request->hasArg ("id")) {
-		struct dnet_id id;
-		dnet_parse_numeric_id (request->getArg ("id"), id);
-		elliptics::ID ID (id);
-		return elliptics::Key (ID);
-	} else {
-		std::string filename = getFilename (request);
-		int column = request->hasArg ("column") ? boost::lexical_cast <int> (request->getArg ("column")) : 0;
-		return elliptics::Key (filename, column);
-	}
-}*/
-
 static elliptics::Key getKey (fastcgi::Request *request) {
 	if (request->hasArg ("id")) {
 		struct dnet_id id;
@@ -326,9 +313,9 @@ void Proxy::onLoad () {
 	registerHandler ("stat", &Proxy::pingHandler);
 	registerHandler ("stat_log", &Proxy::statLogHandler);
 	registerHandler ("stat-log", &Proxy::statLogHandler);
+	registerHandler("exec-script", &Proxy::execScriptHandler);
 	// TODO:
 	//registerHandler("delete-bulk", &Proxy::bulkDeleteHandler);
-	//registerHandler("exec-script", &Proxy::execScriptHandler);
 
 	log ()->debug ("HANDLE handles are registred");
 }
@@ -849,6 +836,34 @@ void Proxy::statLogHandler(fastcgi::Request *request) {
 						boost::lexical_cast <std::string> (
 							body.length ()));
 	request->write (body.c_str (), body.size ());
+}
+
+void Proxy::execScriptHandler(fastcgi::Request *request) {
+	elliptics::Key key = getKey (request);
+	std::string script = request->hasArg("script") ? request->getArg("script") : "";
+
+	std::vector<int> groups;
+	getGroups (request, groups);
+
+	std::string data;
+	request->requestBody().toString(data);
+
+	try {
+		using namespace elliptics;
+		log()->debug("script is <%s>", script.c_str());
+
+		std::string res = ellipticsProxy_->exec_script (key, script, data, _groups = groups);
+		request->setStatus(200);
+		request->write(res.data(), res.size());
+	}
+	catch (const std::exception &e) {
+		log()->error("can not execute script %s %s", script.c_str(), e.what());
+		request->setStatus(503);
+	}
+	catch (...) {
+		log()->error("can not execute script %s", script.c_str());
+		request->setStatus(503);
+	}
 }
 
 void Proxy::allowOrigin(fastcgi::Request *request) const {

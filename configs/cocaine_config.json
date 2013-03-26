@@ -1,9 +1,10 @@
 {
-    "version": 1,
+    "version": 2,
     "paths": {
-        "plugins": "/tmp/cocaine/lib/cocaine",
+        "plugins": "/usr/lib/cocaine",
         "ipc": "/tmp/cocaine/ipc",
-        "spool": "/tmp/cocaine/spool"
+        "spool": "/tmp/cocaine/spool",
+		"runtime": "/tmp/cocaine/runtime"
     },
     "storages": {
         "core": {
@@ -21,6 +22,26 @@
             "args": {
                 "path": "/tmp/cocaine/cache"
             }
+        }
+    },
+	"services": {
+        "logging": {
+            "type": "logging",
+            "args": {
+                "port": 12501
+            }
+        }
+    },
+	"loggers": {
+        "core": {
+            "type": "syslog",
+            "args": {
+                "identity": "cocaine",
+                "verbosity": "debug"
+            }
+        },
+        "tools": {
+            "type": "stdout"
         }
     }
 }

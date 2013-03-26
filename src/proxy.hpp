@@ -53,6 +53,7 @@ private:
 	void bulkGetHandler (fastcgi::Request *request);
 	void pingHandler (fastcgi::Request *request);
 	void statLogHandler (fastcgi::Request *request);
+	void execScriptHandler (fastcgi::Request *request);
 
 	void allowOrigin (fastcgi::Request *request) const;
 
