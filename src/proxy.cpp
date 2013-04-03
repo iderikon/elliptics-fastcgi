@@ -801,14 +801,14 @@ void proxy_t::ping_handler(fastcgi::Request *request) {
 }
 
 void proxy_t::stat_log_handler(fastcgi::Request *request) {
-	std::vector<elliptics::StatusResult> srs = m_elliptics_proxy->stat_log();
+	std::vector<elliptics::status_result_t> srs = m_elliptics_proxy->stat_log();
 
 	std::ostringstream oss;
 	oss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
 	oss << "<data>\n";
 
 	for (auto it = srs.begin(), end = srs.end(); it != end; ++it) {
-		elliptics::StatusResult &s = *it;
+		elliptics::status_result_t &s = *it;
 		oss << "<stat addr=\"" << s.addr << "\" id=\"" << s.id << "\">";
 		oss << "<la>";
 		for (size_t i = 0; i != 3; ++i) {
