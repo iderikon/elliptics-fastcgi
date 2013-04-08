@@ -167,7 +167,7 @@ void proxy_t::onLoad() {
 	elliptics::elliptics_proxy_t::config elconf;
 	std::vector<std::string> names;
 
-	elconf.state_num = config->asInt(path + "/dnet/die-limit");
+	elconf.die_limit = config->asInt(path + "/dnet/die-limit");
 	elconf.base_port = config->asInt(path + "/dnet/base-port");
 	m_write_port = config->asInt(path + "/dnet/write-port", 9000);
 	elconf.directory_bit_num = config->asInt(path + "/dnet/directory-bit-num");
