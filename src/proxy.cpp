@@ -265,9 +265,6 @@ void proxy_t::onLoad() {
 	// TODO:
 	//expires_ = config->asInt(path + "/dnet/expires-time", 0);
 
-	elconf.metabase_write_addr = config->asString(path + "/dnet/metabase/write-addr", "");
-	elconf.metabase_read_addr = config->asString(path + "/dnet/metabase/read-addr", "");
-
 	elconf.cocaine_config = config->asString(path + "/dnet/cocaine_config", "");
 
 	// TODO:
@@ -416,7 +413,7 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 
 	std::vector<int> groups;
 
-	int replication_count = request->hasArg("replication-count") ? boost::lexical_cast<int>(request->getArg("replication-count")) : 0;
+	int success_copies_num = request->hasArg("success-copies-num") ? boost::lexical_cast<int>(request->getArg("success-copies-num")) : 0;
 
 	bool embed = request->hasArg("embed") || request->hasArg("embed_timestamp");
 	time_t ts;
@@ -430,7 +427,7 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 	}
 
 	try {
-		get_groups(request, groups, replication_count);
+		get_groups(request, groups);
 	} catch (const std::exception &e) {
 		log()->error("Exception: %s", e.what());
 		//throw fastcgi::HttpException(503);
@@ -477,7 +474,7 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 					key, data,
 					_offset = offset, _size = size, _cflags = cflags,
 					_ioflags = ioflags, _groups = groups,
-					_replication_count = replication_count/*,
+					_success_copies_num = success_copies_num/*,
 					_embeds = embeds*/);
 		log()->debug("HANDLER upload success");
 
@@ -699,11 +696,11 @@ void proxy_t::bulk_upload_handler(fastcgi::Request *request)
 	}
 
 	unsigned int cflags = request->hasArg("cflags") ? boost::lexical_cast<unsigned int>(request->getArg("cflags")) : 0;
-	int replication_count = request->hasArg("replication-count") ? boost::lexical_cast<int>(request->getArg("replication-count")) : 0;
+	int success_copies_num = request->hasArg("success-copies-num") ? boost::lexical_cast<int>(request->getArg("success-copies-num")) : 0;
 
 	std::vector<int> groups;
 	try {
-		get_groups(request, groups, replication_count);
+		get_groups(request, groups);
 	} catch (const std::exception &e) {
 		log()->error("Exception: %s", e.what());
 		request->setStatus(503);
@@ -712,7 +709,7 @@ void proxy_t::bulk_upload_handler(fastcgi::Request *request)
 
 	{
 		using namespace elliptics;
-		auto results = m_elliptics_proxy->bulk_write(keys, data, _cflags = cflags, _replication_count = replication_count, _groups = groups);
+		auto results = m_elliptics_proxy->bulk_write(keys, data, _cflags = cflags, _success_copies_num = success_copies_num, _groups = groups);
 
 
 		request->setStatus(200);
