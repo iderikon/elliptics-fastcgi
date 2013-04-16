@@ -450,32 +450,25 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 		}
 	}
 
-	//std::vector <boost::shared_ptr <elliptics::embed> > embeds;
-	std::ostringstream oss(std::ios_base::binary | std::ios_base::out);
-
-	if (embed) {
-		bwrite_to_ss<uint32_t>(oss, embed_processor_module_base_t::DNET_FCGI_EMBED_TIMESTAMP);
-		bwrite_to_ss<uint32_t>(oss, 0);
-		bwrite_to_ss<uint32_t>(oss, sizeof (uint32_t));
-		bwrite_to_ss<time_t>(oss, ts);
-
-		bwrite_to_ss<uint32_t>(oss, embed_processor_module_base_t::DNET_FCGI_EMBED_DATA);
-		bwrite_to_ss<uint32_t>(oss, 0);
-		bwrite_to_ss<uint32_t>(oss, 0);
-	}
-
 	std::string data;
 	request->requestBody().toString(data);
-	data = oss.str().append(data);
+	elliptics::data_container_t ds(data);
+
+	if (embed) {
+		timespec timestamp;
+		timestamp.tv_sec = ts;
+		timestamp.tv_nsec = 0;
+
+		ds.set<elliptics::DNET_FCGI_EMBED_TIMESTAMP>(timestamp);
+	}
 
 	try {
 		using namespace elliptics;
 		std::vector<lookup_result_t> l =  m_elliptics_proxy->write(
-					key, data,
+					key, ds,
 					_offset = offset, _size = size, _cflags = cflags,
 					_ioflags = ioflags, _groups = groups,
-					_success_copies_num = success_copies_num/*,
-					_embeds = embeds*/);
+					_success_copies_num = success_copies_num);
 		log()->debug("HANDLER upload success");
 
 		request->setStatus(200);
@@ -543,67 +536,44 @@ void proxy_t::get_handler(fastcgi::Request *request) {
 		return;
 	}
 
+	bool embeded = request->hasArg("embed") || request->hasArg("embed_timestamp");
 
-	elliptics::read_result_t result;
+	elliptics::data_container_t result;
 	{
 		using namespace elliptics;
 		result = m_elliptics_proxy->read(key,
 										_offset = offset, _cflags = cflags,
 										_ioflags = ioflags, _size = size,
-										_groups = groups);
+										_groups = groups, _embeded = embeded);
 	}
 	request->setStatus(200);
 	request->setContentType(content_type);
 
-	std::istringstream iss(result.data, std::ios_base::binary | std::ios_base::in);
+	auto ts = result.get<elliptics::DNET_FCGI_EMBED_TIMESTAMP>();
 
-	bool embed = request->hasArg("embed") || request->hasArg("embed_timestamp");
+	char ts_str[128] = {0};
+	if (ts) {
+		time_t timestamp = (time_t)(ts->tv_sec);
+		struct tm tmp;
+		strftime(ts_str, sizeof (ts_str), "%a, %d %b %Y %T %Z", gmtime_r(&timestamp, &tmp));
 
-	time_t timestamp = 0;
-
-	if (embed) {
-		uint32_t type;
-		uint32_t flags;
-		uint32_t size;
-
-		do {
-			bread_from_ss<uint32_t>(iss, type);
-			bread_from_ss<uint32_t>(iss, flags);
-			bread_from_ss<uint32_t>(iss, size);
-
-			if (type == embed_processor_module_base_t::DNET_FCGI_EMBED_TIMESTAMP) {
-				bread_from_ss<time_t>(iss, timestamp);
-			} else if (type == embed_processor_module_base_t::DNET_FCGI_EMBED_DATA) {
-				break;
-			} else {
-				auto it = m_embed_processors.find(type);
-				if (it != m_embed_processors.end()) {
-					std::vector<char> buf(size);
-					if (size != 0)
-						iss.read(buf.data(), size);
-					int http_status = 200;
-					if (it->second->process_embed(request, flags, buf.data(), size, http_status)) {
-						request->setStatus(http_status);
-						return;
-					}
-				}
-
+		if (request->hasHeader("If-Modified-Since")) {
+			if (request->getHeader("If-Modified-Since") == ts_str) {
+				request->setStatus(304);
+				return;
 			}
-		} while (!iss.eof());
+		}
 	}
 
-	const char *rd = result.data.data();
-	const char *b = rd + iss.tellg();
-	const char *e = rd + result.data.length();
-
-	char ts_str[128];
-	struct tm tmp;
-	strftime(ts_str, sizeof (ts_str), "%a, %d %b %Y %T %Z", gmtime_r(&timestamp, &tmp));
 	request->setHeader("Last-Modified", ts_str);
 
+	std::string d = result.data.to_string();
+
 	request->setHeader("Content-Length",
-						boost::lexical_cast<std::string>(e - b));
-	request->write(b, e - b);
+						boost::lexical_cast<std::string>(d.size()));
+
+
+	request->write(d.data(), d.size());
 }
 
 void proxy_t::delete_handler(fastcgi::Request *request) {
@@ -686,13 +656,13 @@ void proxy_t::bulk_upload_handler(fastcgi::Request *request)
 	std::vector<std::string> file_names;
 	request->remoteFiles(file_names);
 	std::vector<elliptics::key_t> keys;
-	std::vector<std::string> data;
+	std::vector<elliptics::data_container_t> data;
 
 	for (auto it = file_names.begin(), end = file_names.end(); it != end; ++it) {
 		std::string content;
 		request->remoteFile(*it).toString(content);
 		keys.emplace_back(*it, 0);
-		data.push_back(content);
+		data.emplace_back(content);
 	}
 
 	unsigned int cflags = request->hasArg("cflags") ? boost::lexical_cast<unsigned int>(request->getArg("cflags")) : 0;
@@ -774,9 +744,10 @@ void proxy_t::bulk_get_handler(fastcgi::Request *request)
 		//unsigned char CRLF [2] = {0x0D, 0x0A};
 		char CRLF [] = "\r\n";
 		for (auto it = result.begin(), end = result.end(); it != end; ++it) {
-			size_t size = it->second.data.length();
+			std::string content = it->second.data.to_string();
+			size_t size = content.size();
 			oss << std::hex << size << "; name=\"" << it->first.to_string() << "\"" << CRLF;
-			oss << it->second.data << CRLF;
+			oss << content << CRLF;
 		}
 		oss << 0 << CRLF << CRLF;
 		std::string body = oss.str();
