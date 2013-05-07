@@ -477,8 +477,8 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 		ss << "written " << l.size() << " copies" << std::endl;
 		for (std::vector<lookup_result_t>::const_iterator it = l.begin();
 			 it != l.end(); ++it) {
-			ss << "\tgroup: " << it->group << "\tpath: " << it->hostname
-			   << ":" << it->port << it->path << std::endl;
+			ss << "\tgroup: " << it->group() << "\tpath: " << it->host()
+			   << ":" << it->port() << it->path() << std::endl;
 		}
 
 		std::string str = ss.str();
@@ -638,8 +638,8 @@ void proxy_t::download_info_handler(fastcgi::Request *request) {
 
 	ss << "<download-info>";
 	//ss << "<ip>" << request->getRemoteAddr() << "</ip>";
-	ss << "<host>" << lr.hostname << "</host>";
-	ss << "<path>" << lr.path << "</path>";
+	ss << "<host>" << lr.host() << "</host>";
+	ss << "<path>" << lr.path() << "</path>";
 	//ss << "<group>" << lr.group << "</group>";
 	ss << "<region>" << region << "</region>";
 	ss << "</download-info>";
@@ -690,8 +690,8 @@ void proxy_t::bulk_upload_handler(fastcgi::Request *request)
 		for (auto it = results.begin(), end = results.end(); it != end; ++it) {
 			oss << it->first.to_string() << ':' << std::endl;
 			for (auto it2 = it->second.begin(), end2 = it->second.end(); it2 != end2; ++it2) {
-				oss << "\tgroup: " << it2->group << "\tpath: " << it2->hostname
-									  << ":" << it2->port << it2->path << std::endl;
+				oss << "\tgroup: " << it2->group() << "\tpath: " << it2->host()
+									  << ":" << it2->port() << it2->path() << std::endl;
 			}
 		}
 
