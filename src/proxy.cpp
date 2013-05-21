@@ -440,7 +440,7 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 			size = boost::lexical_cast<uint64_t>(request->getArg("prepare"));
 			ioflags |= DNET_IO_FLAGS_PREPARE;
 		} else if (request->hasArg("commit")) {
-			size = 0;
+			size = boost::lexical_cast<uint64_t>(request->getArg("commit"));
 			ioflags |= DNET_IO_FLAGS_COMMIT;
 		} else if (request->hasArg("plain_write") || request->hasArg("plain-write")) {
 			size = 0;
