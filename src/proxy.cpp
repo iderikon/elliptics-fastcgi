@@ -18,7 +18,7 @@
 
 #include <openssl/md5.h>
 
-struct proxy_t2::data {
+struct proxy_t::data {
 	data()
 		: m_logger(0)
 	{
@@ -66,16 +66,16 @@ struct proxy_t2::data {
 #endif /* HAVE_METABASE */
 };
 
-proxy_t2::proxy_t2(fastcgi::ComponentContext *context)
+proxy_t::proxy_t(fastcgi::ComponentContext *context)
 	: fastcgi::Component(context)
-	, m_data(new proxy_t2::data)
+	, m_data(new proxy_t::data)
 {
 }
 
-proxy_t2::~proxy_t2() {
+proxy_t::~proxy_t() {
 }
 
-void proxy_t2::onLoad() {
+void proxy_t::onLoad() {
 	assert(0 == m_data->m_logger);
 
 	const fastcgi::Config *config = context()->getConfig();
@@ -235,10 +235,10 @@ void proxy_t2::onLoad() {
 	register_handlers();
 }
 
-void proxy_t2::onUnload() {
+void proxy_t::onUnload() {
 }
 
-void proxy_t2::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context) {
+void proxy_t::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context) {
 	(void)context;
 	log()->debug("Handling request: %s", request->getScriptName().c_str());
 	std::cout << "handleRequest" << std::endl;
@@ -314,7 +314,7 @@ void proxy_t2::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext 
 	}
 }
 
-size_t proxy_t2::params_num(tokenizer_t &tok) {
+size_t proxy_t::params_num(tokenizer_t &tok) {
 	size_t result = 0;
 	for (auto it = ++tok.begin(), end = tok.end(); end != it; ++it) {
 		++result;
@@ -322,7 +322,7 @@ size_t proxy_t2::params_num(tokenizer_t &tok) {
 	return result;
 }
 
-std::string proxy_t2::get_filename(fastcgi::Request *request) {
+std::string proxy_t::get_filename(fastcgi::Request *request) {
 	assert(request != 0);
 
 	if (request->hasArg("name")) {
@@ -335,7 +335,7 @@ std::string proxy_t2::get_filename(fastcgi::Request *request) {
 	}
 }
 
-ioremap::elliptics::key proxy_t2::get_key(fastcgi::Request *request) {
+ioremap::elliptics::key proxy_t::get_key(fastcgi::Request *request) {
 	assert(request != 0);
 
 	if (request->hasArg("id")) {
@@ -348,19 +348,19 @@ ioremap::elliptics::key proxy_t2::get_key(fastcgi::Request *request) {
 	}
 }
 
-const fastcgi::Logger *proxy_t2::log() const {
+const fastcgi::Logger *proxy_t::log() const {
 	return m_data->m_logger;
 }
 
-fastcgi::Logger *proxy_t2::log() {
+fastcgi::Logger *proxy_t::log() {
 	return m_data->m_logger;
 }
 
-ioremap::elliptics::node &proxy_t2::elliptics_node() {
+ioremap::elliptics::node &proxy_t::elliptics_node() {
 	return *m_data->m_elliptics_node;
 }
 
-ioremap::elliptics::session proxy_t2::get_session(fastcgi::Request *request) {
+ioremap::elliptics::session proxy_t::get_session(fastcgi::Request *request) {
 	ioremap::elliptics::session session(*m_data->m_elliptics_node);
 
 	if (request) {
@@ -372,7 +372,7 @@ ioremap::elliptics::session proxy_t2::get_session(fastcgi::Request *request) {
 	return session;
 }
 
-std::vector<int> proxy_t2::get_groups(fastcgi::Request *request, size_t count) {
+std::vector<int> proxy_t::get_groups(fastcgi::Request *request, size_t count) {
 	assert(request != 0);
 
 	if (count == 0) {
@@ -431,7 +431,7 @@ std::vector<int> proxy_t2::get_groups(fastcgi::Request *request, size_t count) {
 	return groups;
 }
 
-bool proxy_t2::upload_is_good(size_t success_copies_num, size_t replication_count, size_t size) {
+bool proxy_t::upload_is_good(size_t success_copies_num, size_t replication_count, size_t size) {
 	switch (success_copies_num) {
 	case elliptics::SUCCESS_COPIES_TYPE__ANY:
 		return size >= 1;
@@ -444,7 +444,7 @@ bool proxy_t2::upload_is_good(size_t success_copies_num, size_t replication_coun
 	}
 }
 
-size_t proxy_t2::uploads_need(size_t success_copies_num) {
+size_t proxy_t::uploads_need(size_t success_copies_num) {
 	size_t replication_count = m_data->m_replication_count;
 	switch (success_copies_num) {
 	case elliptics::SUCCESS_COPIES_TYPE__ANY:
@@ -458,25 +458,25 @@ size_t proxy_t2::uploads_need(size_t success_copies_num) {
 	}
 }
 
-elliptics::lookup_result_t proxy_t2::parse_lookup(const ioremap::elliptics::lookup_result_entry &entry) {
+elliptics::lookup_result_t proxy_t::parse_lookup(const ioremap::elliptics::lookup_result_entry &entry) {
 	return elliptics::lookup_result_t(entry, m_data->m_eblob_style_path, m_data->m_base_port);
 }
 
-void proxy_t2::register_handlers() {
-	register_handler("upload", &proxy_t2::upload_handler);
-	register_handler("get", &proxy_t2::get_handler);
-	register_handler("delete", &proxy_t2::delete_handler);
-	register_handler("download-info", &proxy_t2::download_info_handler);
-	register_handler("ping", &proxy_t2::ping_handler);
-	register_handler("stat", &proxy_t2::ping_handler);
-	register_handler("stat_log", &proxy_t2::stat_log_handler);
-	register_handler("stat-log", &proxy_t2::stat_log_handler);
-	register_handler("bulk-upload", &proxy_t2::bulk_upload_handler);
-	register_handler("bulk-read", &proxy_t2::bulk_get_handler);
-	register_handler("exec-script", &proxy_t2::exec_script_handler);
+void proxy_t::register_handlers() {
+	register_handler("upload", &proxy_t::upload_handler);
+	register_handler("get", &proxy_t::get_handler);
+	register_handler("delete", &proxy_t::delete_handler);
+	register_handler("download-info", &proxy_t::download_info_handler);
+	register_handler("ping", &proxy_t::ping_handler);
+	register_handler("stat", &proxy_t::ping_handler);
+	register_handler("stat_log", &proxy_t::stat_log_handler);
+	register_handler("stat-log", &proxy_t::stat_log_handler);
+	register_handler("bulk-upload", &proxy_t::bulk_upload_handler);
+	register_handler("bulk-read", &proxy_t::bulk_get_handler);
+	register_handler("exec-script", &proxy_t::exec_script_handler);
 }
 
-void proxy_t2::register_handler(const char *name, proxy_t2::request_handler handler, bool override) {
+void proxy_t::register_handler(const char *name, proxy_t::request_handler handler, bool override) {
 	if (override) {
 		log()->debug("Override handler: %s", name);
 		m_data->m_handlers[name] = handler;
@@ -489,7 +489,7 @@ void proxy_t2::register_handler(const char *name, proxy_t2::request_handler hand
 	}
 }
 
-void proxy_t2::allow_origin(fastcgi::Request *request) const {
+void proxy_t::allow_origin(fastcgi::Request *request) const {
 	if (0 == m_data->m_allow_origin_domains.size()) {
 		return;
 	}
@@ -530,7 +530,7 @@ void proxy_t2::allow_origin(fastcgi::Request *request) const {
 	throw fastcgi::HttpException(403);
 }
 
-void proxy_t2::upload_handler(fastcgi::Request *request) {
+void proxy_t::upload_handler(fastcgi::Request *request) {
 	std::string data;
 	request->requestBody().toString(data);
 	elliptics::data_container_t dc(data);
@@ -611,7 +611,7 @@ void proxy_t2::upload_handler(fastcgi::Request *request) {
 	request->write(str.c_str(), str.size());
 }
 
-void proxy_t2::get_handler(fastcgi::Request *request) {
+void proxy_t::get_handler(fastcgi::Request *request) {
 	std::string content_type;
 	{
 		std::string filename = get_filename(request);
@@ -679,7 +679,7 @@ void proxy_t2::get_handler(fastcgi::Request *request) {
 	request->write(d.data(), d.size());
 }
 
-void proxy_t2::delete_handler(fastcgi::Request *request) {
+void proxy_t::delete_handler(fastcgi::Request *request) {
 	auto key = get_key(request);
 	auto session = get_session(request);
 	session.set_filter(ioremap::elliptics::filters::all);
@@ -695,7 +695,7 @@ void proxy_t2::delete_handler(fastcgi::Request *request) {
 	}
 }
 
-void proxy_t2::download_info_handler(fastcgi::Request *request) {
+void proxy_t::download_info_handler(fastcgi::Request *request) {
 	auto key = get_key(request);
 	auto session = get_session(request);
 
@@ -739,7 +739,7 @@ void proxy_t2::download_info_handler(fastcgi::Request *request) {
 	request->setStatus(503);
 }
 
-void proxy_t2::ping_handler(fastcgi::Request *request) {
+void proxy_t::ping_handler(fastcgi::Request *request) {
 	unsigned short status_code = 200;
 	auto session = get_session();
 	if (session.state_num() < m_data->m_die_limit) {
@@ -748,7 +748,7 @@ void proxy_t2::ping_handler(fastcgi::Request *request) {
 	request->setStatus(status_code);
 }
 
-void proxy_t2::stat_log_handler(fastcgi::Request *request) {
+void proxy_t::stat_log_handler(fastcgi::Request *request) {
 	auto session = get_session();
 
 	auto srs = session.stat_log().get();
@@ -798,7 +798,7 @@ void proxy_t2::stat_log_handler(fastcgi::Request *request) {
 	request->write(body.c_str(), body.size());
 }
 
-ioremap::elliptics::async_write_result proxy_t2::write(ioremap::elliptics::session &session
+ioremap::elliptics::async_write_result proxy_t::write(ioremap::elliptics::session &session
 											 , const ioremap::elliptics::key &key
 											 , const ioremap::elliptics::data_pointer &data
 											 , const uint64_t &offset, fastcgi::Request *request
@@ -824,7 +824,7 @@ struct dnet_id_less {
 	}
 };
 
-void proxy_t2::bulk_upload_handler(fastcgi::Request *request) {
+void proxy_t::bulk_upload_handler(fastcgi::Request *request) {
 	std::vector<std::string> filenames;
 	request->remoteFiles(filenames);
 	std::vector<std::string> data;
@@ -906,7 +906,7 @@ void proxy_t2::bulk_upload_handler(fastcgi::Request *request) {
 	request->write(str.c_str(), str.size());
 }
 
-void proxy_t2::bulk_get_handler(fastcgi::Request *request) {
+void proxy_t::bulk_get_handler(fastcgi::Request *request) {
 	std::vector<std::string> filenames;
 	auto session = get_session(request);
 
@@ -974,7 +974,7 @@ void proxy_t2::bulk_get_handler(fastcgi::Request *request) {
 
 }
 
-void proxy_t2::exec_script_handler(fastcgi::Request *request) {
+void proxy_t::exec_script_handler(fastcgi::Request *request) {
 	auto key = get_key(request);
 	auto session = get_session(request);
 	std::string script = request->hasArg("script") ? request->getArg("script") : "";
@@ -994,5 +994,5 @@ void proxy_t2::exec_script_handler(fastcgi::Request *request) {
 }
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
-FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", proxy_t2)
+FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", proxy_t)
 FCGIDAEMON_REGISTER_FACTORIES_END()

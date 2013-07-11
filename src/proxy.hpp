@@ -18,19 +18,19 @@
 #include "component_base.hpp"
 #include "embed_processor.hpp"
 
-class proxy_t2
+class proxy_t
 		: /*virtual */public fastcgi::Component
 		, /*virtual */public fastcgi::Handler {
 public:
-	proxy_t2(fastcgi::ComponentContext *context);
-	virtual ~proxy_t2();
+	proxy_t(fastcgi::ComponentContext *context);
+	virtual ~proxy_t();
 
 	virtual void onLoad();
 	virtual void onUnload();
 	virtual void handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context);
 
 protected:
-	typedef void (proxy_t2::*request_handler)(fastcgi::Request *request);
+	typedef void (proxy_t::*request_handler)(fastcgi::Request *request);
 	typedef boost::char_separator<char> separator_t;
 	typedef boost::tokenizer<separator_t> tokenizer_t;
 
