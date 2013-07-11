@@ -10,6 +10,8 @@
 #include <iterator>
 #include <string>
 #include <chrono>
+#include <thread>
+#include <condition_variable>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/optional/optional.hpp>
@@ -96,8 +98,7 @@ static elliptics::key_t get_key(fastcgi::Request *request) {
 		return elliptics::key_t(id);
 	} else {
 		std::string filename = get_filename(request);
-		int column = request->hasArg("column") ? boost::lexical_cast<int>(request->getArg("column")) : 0;
-		return elliptics::key_t(filename, column);
+		return elliptics::key_t(filename);
 	}
 }
 
@@ -661,7 +662,7 @@ void proxy_t::bulk_upload_handler(fastcgi::Request *request)
 	for (auto it = file_names.begin(), end = file_names.end(); it != end; ++it) {
 		std::string content;
 		request->remoteFile(*it).toString(content);
-		keys.emplace_back(*it, 0);
+		keys.emplace_back(*it);
 		data.emplace_back(content);
 	}
 
@@ -1202,8 +1203,7 @@ ioremap::elliptics::key proxy_t2::get_key(fastcgi::Request *request) {
 		return ioremap::elliptics::key(id);
 	} else {
 		std::string filename = get_filename(request);
-		int column = request->hasArg("column") ? boost::lexical_cast<int>(request->getArg("column")) : 0;
-		return ioremap::elliptics::key(filename, column);
+		return ioremap::elliptics::key(filename);
 	}
 }
 
@@ -1679,8 +1679,6 @@ ioremap::elliptics::async_write_result proxy_t2::write(ioremap::elliptics::sessi
 struct dnet_id_less {
 	bool operator () (const struct dnet_id &ob1, const struct dnet_id &ob2) {
 		int res = memcmp(ob1.id, ob2.id, DNET_ID_SIZE);
-		if (res == 0)
-			res = ob1.type - ob2.type;
 		return (res < 0);
 	}
 };
