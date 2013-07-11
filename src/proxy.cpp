@@ -1331,8 +1331,8 @@ void proxy_t2::register_handlers() {
 	register_handler("stat_log", &proxy_t2::stat_log_handler);
 	register_handler("stat-log", &proxy_t2::stat_log_handler);
 	register_handler("bulk-upload", &proxy_t2::bulk_upload_handler);
-	//register_handler("bulk-read", &proxy_t::bulk_get_handler);
-	//register_handler("exec-script", &proxy_t::exec_script_handler);
+	register_handler("bulk-read", &proxy_t2::bulk_get_handler);
+	register_handler("exec-script", &proxy_t2::exec_script_handler);
 }
 
 void proxy_t2::register_handler(const char *name, proxy_t2::request_handler handler, bool override) {
@@ -1767,8 +1767,23 @@ void proxy_t2::bulk_upload_handler(fastcgi::Request *request) {
 
 void proxy_t2::bulk_get_handler(fastcgi::Request *request) {
 	std::vector<std::string> filenames;
-	request->remoteFiles(filenames);
 	auto session = get_session(request);
+
+	{
+		std::string filenames_str;
+		request->requestBody().toString(filenames_str);
+
+		separator_t sep("\n");
+		tokenizer_t tok(filenames_str, sep);
+
+		try {
+			for (auto it = tok.begin(), end = tok.end(); it != end; ++it) {
+				filenames.push_back(*it);
+			}
+		} catch (...) {
+			log()->error("invalid keys list: %s", filenames_str.c_str());
+		}
+	}
 
 
 	std::map<dnet_id, std::string, dnet_id_less> keys_transform;
