@@ -3,6 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Artem Sokolov <derikon@yandex-team.ru>
 Build-Depends: debhelper (>=5),
+ cmake (>= 2.6),
  cdbs,
  libmastermind-dev (>= 1.0),
  elliptics-dev (>= 2.24), elliptics-dev (<< 2.25),
