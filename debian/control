@@ -4,7 +4,10 @@ Priority: optional
 Maintainer: Artem Sokolov <derikon@yandex-team.ru>
 Build-Depends: debhelper (>=5),
  cdbs,
- libmastermind (>= 1.0),
+ libmastermind-dev (>= 1.0),
+ elliptics-dev (>= 2.24), elliptics-dev (<< 2.25),
+ libfastcgi-daemon2-dev,
+ libmsgpack-dev
 Standards-Version: 3.9.1
 
 Package: elliptics-fastcgi

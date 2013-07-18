@@ -6,13 +6,12 @@ file(READ "${PROJECT_SOURCE_DIR}/debian/changelog" DEBCHANGELOG)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wall -pedantic -std=c++0x")
 
+include_directories(BEFORE ${PROJECT_SOURCE_DIR}/include)
+
 set(SOURCES 
-	${PROJECT_SOURCE_DIR}/src/proxy.hpp
 	${PROJECT_SOURCE_DIR}/src/proxy.cpp
-	${PROJECT_SOURCE_DIR}/src/embed_processor.hpp
-	${PROJECT_SOURCE_DIR}/src/embed_processor.cpp
-	${PROJECT_SOURCE_DIR}/src/component_base.hpp
-	${PROJECT_SOURCE_DIR}/src/component_base.cpp
+	${PROJECT_SOURCE_DIR}/src/data_container.cpp
+	${PROJECT_SOURCE_DIR}/src/lookup_result.cpp
 	)
 
 add_library(${TARGET} SHARED ${SOURCES})

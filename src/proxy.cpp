@@ -1,22 +1,15 @@
-#include "proxy.hpp"
+#include "elliptics-fastcgi/proxy.hpp"
 
 #include <fastcgi2/except.h>
 #include <fastcgi2/config.h>
+#include <fastcgi2/component_factory.h>
 
-#include <cstring>
-#include <cstdio>
-#include <iostream>
 #include <iomanip>
-#include <iterator>
-#include <string>
 #include <chrono>
-#include <thread>
-#include <condition_variable>
 
-#include <boost/lexical_cast.hpp>
-#include <boost/optional/optional.hpp>
+#include "elliptics-fastcgi/data_container.hpp"
 
-#include <openssl/md5.h>
+namespace elliptics {
 
 struct proxy_t::data {
 	data()
@@ -241,7 +234,6 @@ void proxy_t::onUnload() {
 void proxy_t::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context) {
 	(void)context;
 	log()->debug("Handling request: %s", request->getScriptName().c_str());
-	std::cout << "handleRequest" << std::endl;
 
 	try {
 		std::string handler;
@@ -295,11 +287,6 @@ void proxy_t::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *
 		if (m_data->m_allow_origin_handlers.end() != m_data->m_allow_origin_handlers.find(handler)) {
 			allow_origin(request);
 		}
-
-		std::cout << "QueryString: " << request->getQueryString() << std::endl;
-		std::cout << "ScriptName: " << request->getScriptName() << std::endl;
-		std::cout << "filename: " << get_filename(request) << std::endl;
-		std::cout << "handler: " << handler << std::endl;
 
 		log()->debug("Process request <%s>", handler.c_str());
 		(this->*it->second)(request);
@@ -471,7 +458,7 @@ void proxy_t::register_handlers() {
 	register_handler("stat", &proxy_t::ping_handler);
 	register_handler("stat_log", &proxy_t::stat_log_handler);
 	register_handler("stat-log", &proxy_t::stat_log_handler);
-	register_handler("bulk-upload", &proxy_t::bulk_upload_handler);
+	register_handler("bulk-write", &proxy_t::bulk_upload_handler);
 	register_handler("bulk-read", &proxy_t::bulk_get_handler);
 	register_handler("exec-script", &proxy_t::exec_script_handler);
 }
@@ -993,6 +980,8 @@ void proxy_t::exec_script_handler(fastcgi::Request *request) {
 	request->write(data_str.c_str(), data_str.size());
 }
 
+} // namespace elliptics
+
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
-FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", proxy_t)
+FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", elliptics::proxy_t)
 FCGIDAEMON_REGISTER_FACTORIES_END()

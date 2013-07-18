@@ -1,22 +1,33 @@
 #ifndef PROXY_HPP_MODULE
 #define PROXY_HPP_MODULE
 
-#include <fastcgi2/component_factory.h>
+//#include <fastcgi2/component_factory.h>
 #include <fastcgi2/handler.h>
+#include <fastcgi2/component.h>
 #include <fastcgi2/request.h>
 #include <fastcgi2/logger.h>
 
 #include <boost/tokenizer.hpp>
-#include <boost/shared_ptr.hpp>
+//#include <boost/shared_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <elliptics/proxy.hpp>
+#include <elliptics/session.hpp>
+
+#include "lookup_result.hpp"
 
 #include <map>
-#include <set>
 
-#include "component_base.hpp"
-#include "embed_processor.hpp"
+namespace elliptics {
+
+enum SUCCESS_COPIES_TYPE {
+	SUCCESS_COPIES_TYPE__ANY = -1,
+	SUCCESS_COPIES_TYPE__QUORUM = -2,
+	SUCCESS_COPIES_TYPE__ALL = -3
+};
+
+enum tag_user_flags {
+	UF_EMBEDS = 1
+};
 
 class proxy_t
 		: /*virtual */public fastcgi::Component
@@ -36,7 +47,7 @@ protected:
 
 	static size_t params_num(tokenizer_t &tok);
 	static std::string get_filename(fastcgi::Request *request);
-	static elliptics::key_t get_key(fastcgi::Request *request);
+	static ioremap::elliptics::key get_key(fastcgi::Request *request);
 
 	template <typename T>
 	T get_arg(fastcgi::Request *request, const std::string &name, const T &default_value = T()) {
@@ -101,5 +112,7 @@ private:
 												 , const uint64_t &offset, fastcgi::Request *request
 												 );
 };
+
+} // namespace elliptics
 
 #endif /* PROXY_HPP_MODULE */
