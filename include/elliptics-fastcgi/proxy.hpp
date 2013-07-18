@@ -1,14 +1,12 @@
 #ifndef PROXY_HPP_MODULE
 #define PROXY_HPP_MODULE
 
-//#include <fastcgi2/component_factory.h>
 #include <fastcgi2/handler.h>
 #include <fastcgi2/component.h>
 #include <fastcgi2/request.h>
 #include <fastcgi2/logger.h>
 
 #include <boost/tokenizer.hpp>
-//#include <boost/shared_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include <elliptics/session.hpp>
