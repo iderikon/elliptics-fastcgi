@@ -5,5 +5,4 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 
 DEB_CMAKE_EXTRA_FLAGS := -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_SKIP_RPATH=OFF
 
-#DEB_DH_STRIP_ARGS := --dbg-package=proxy-dbg --keep-debug
-DEB_DH_STRIP_ARGS := --keep-debug
+DEB_DH_STRIP_ARGS := --dbg-package=elliptics-fastcgi-dbg

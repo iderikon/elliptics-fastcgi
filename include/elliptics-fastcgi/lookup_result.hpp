@@ -1,5 +1,5 @@
-#ifndef _ELLIPTICS_LOOKUP_RESULT_HPP_
-#define _ELLIPTICS_LOOKUP_RESULT_HPP_
+#ifndef INCLUDE__ELLIPTICS_FASTCGI__LOOKUP_RESULT_HPP
+#define INCLUDE__ELLIPTICS_FASTCGI__LOOKUP_RESULT_HPP
 
 #include <elliptics/session.hpp>
 
@@ -34,4 +34,4 @@ private:
 
 } // namespace elliptics
 
-#endif /* _ELLIPTICS_LOOKUP_RESULT_HPP_ */
+#endif /* INCLUDE__ELLIPTICS_FASTCGI__LOOKUP_RESULT_HPP */

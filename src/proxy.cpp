@@ -216,16 +216,7 @@ void proxy_t::onLoad() {
 		m_data->m_allow_origin_handlers.insert(config->asString(it->c_str()));
 	}
 
-#ifdef HAVE_METABASE
-	if (cocaine_config.size()) {
-		m_data->m_cocaine_dealer.reset(new cocaine::dealer::dealer_t(cocaine_config));
-	}
-
-	m_data->m_cocaine_default_policy.deadline = dnet_conf.wait_timeout;
-#endif /* HAVE_METABASE */
-
-
-	register_handlers();
+	this->register_handlers();
 }
 
 void proxy_t::onUnload() {
@@ -289,7 +280,7 @@ void proxy_t::handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *
 		}
 
 		log()->debug("Process request <%s>", handler.c_str());
-		(this->*it->second)(request);
+		(it->second)(request);
 	}
 	catch (const fastcgi::HttpException &e) {
 		log()->debug("Exception: %s", e.what());
@@ -450,17 +441,17 @@ elliptics::lookup_result_t proxy_t::parse_lookup(const ioremap::elliptics::looku
 }
 
 void proxy_t::register_handlers() {
-	register_handler("upload", &proxy_t::upload_handler);
-	register_handler("get", &proxy_t::get_handler);
-	register_handler("delete", &proxy_t::delete_handler);
-	register_handler("download-info", &proxy_t::download_info_handler);
-	register_handler("ping", &proxy_t::ping_handler);
-	register_handler("stat", &proxy_t::ping_handler);
-	register_handler("stat_log", &proxy_t::stat_log_handler);
-	register_handler("stat-log", &proxy_t::stat_log_handler);
-	register_handler("bulk-write", &proxy_t::bulk_upload_handler);
-	register_handler("bulk-read", &proxy_t::bulk_get_handler);
-	register_handler("exec-script", &proxy_t::exec_script_handler);
+	register_handler("upload", std::bind(&proxy_t::upload_handler, this, std::placeholders::_1));
+	register_handler("get", std::bind(&proxy_t::get_handler, this, std::placeholders::_1));
+	register_handler("delete", std::bind(&proxy_t::delete_handler, this, std::placeholders::_1));
+	register_handler("download-info", std::bind(&proxy_t::download_info_handler, this, std::placeholders::_1));
+	register_handler("ping", std::bind(&proxy_t::ping_handler, this, std::placeholders::_1));
+	register_handler("stat", std::bind(&proxy_t::ping_handler, this, std::placeholders::_1));
+	register_handler("stat_log", std::bind(&proxy_t::stat_log_handler, this, std::placeholders::_1));
+	register_handler("stat-log", std::bind(&proxy_t::stat_log_handler, this, std::placeholders::_1));
+	register_handler("bulk-write", std::bind(&proxy_t::bulk_upload_handler, this, std::placeholders::_1));
+	register_handler("bulk-read", std::bind(&proxy_t::bulk_get_handler, this, std::placeholders::_1));
+	register_handler("exec-script", std::bind(&proxy_t::exec_script_handler, this, std::placeholders::_1));
 }
 
 void proxy_t::register_handler(const char *name, proxy_t::request_handler handler, bool override) {
@@ -516,6 +507,21 @@ void proxy_t::allow_origin(fastcgi::Request *request) const {
 	}
 	throw fastcgi::HttpException(403);
 }
+
+namespace {
+std::string id_str(const ioremap::elliptics::key &key, ioremap::elliptics::session sess) {
+	struct dnet_id id;
+	memset(&id, 0, sizeof(id));
+	if (key.by_id()) {
+		id = key.id();
+	} else {
+		sess.transform(key.remote(), id);
+	}
+	char str[2 * DNET_ID_SIZE + 1];
+	dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, str);
+	return std::string(str);
+}
+} // namespace
 
 void proxy_t::upload_handler(fastcgi::Request *request) {
 	std::string data;
@@ -581,15 +587,27 @@ void proxy_t::upload_handler(fastcgi::Request *request) {
 		return;
 	}
 
-	std::stringstream ss;
-	ss << "written " << lrs.size() << " copies" << std::endl;
+	std::ostringstream oss;
+	oss
+		<< "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+		<< "<post obj=\"" << key.remote() << "\" id=\""
+		<< id_str(key, session)
+		<< "\" crc=\"" << id_str(ioremap::elliptics::key(data), session)
+		<< "\" groups=\"" << lrs.size()
+		<< "\" size=\"" << content.size() << "\">\n";
+
+	size_t written = 0;
 	for (auto it = lrs.begin(); it != lrs.end(); ++it) {
-		auto entry = elliptics::lookup_result_t(*it, m_data->m_eblob_style_path, m_data->m_base_port);
-		ss << "\tgroup: " << entry.group() << "\tpath: " << entry.host()
-		   << ":" << entry.port() << entry.path() << std::endl;
+		const auto &pl = parse_lookup(*it);
+		if (pl.status() == 0)
+			written += 1;
+		oss << "<complete addr=\"" << pl.addr() << "\" path=\"" <<
+			pl.full_path() << "\" group=\"" << pl.group() <<
+			"\" status=\"" << pl.status() << "\"/>\n";
 	}
 
-	std::string str = ss.str();
+	oss << "<written>" << written << "</written>\n</post>";
+	std::string str = oss.str();
 
 	request->setContentType("text/plaint");
 	request->setHeader("Context-Lenght",

@@ -1,5 +1,5 @@
-#ifndef _ELLIPTICS_DATA_CONTAINER_HPP_
-#define _ELLIPTICS_DATA_CONTAINER_HPP_
+#ifndef INCLUDE__ELLIPTICS_FASTCGI__DATA_CONTAINER_HPP
+#define INCLUDE__ELLIPTICS_FASTCGI__DATA_CONTAINER_HPP
 
 #include <map>
 #include <string>
@@ -152,4 +152,4 @@ private:
 };
 } // namespace elliptcis
 
-#endif /* _ELLIPTICS_DATA_CONTAINER_HPP_ */
+#endif /* INCLUDE__ELLIPTICS_FASTCGI__DATA_CONTAINER_HPP */

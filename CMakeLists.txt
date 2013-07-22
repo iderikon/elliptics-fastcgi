@@ -33,4 +33,9 @@ install(
 	${TARGET}
     LIBRARY DESTINATION lib/fastcgi2 COMPONENT runtime)
 
+install(
+	DIRECTORY
+	include/
+	DESTINATION include
+	COMPONENT development)
 

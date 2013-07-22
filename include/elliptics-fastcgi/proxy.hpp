@@ -1,5 +1,7 @@
-#ifndef PROXY_HPP_MODULE
-#define PROXY_HPP_MODULE
+#ifndef INCLUDE__ELLIPTICS_FASTCGI__PROXY_HPP
+#define INCLUDE__ELLIPTICS_FASTCGI__PROXY_HPP
+
+#include <functional>
 
 #include <fastcgi2/handler.h>
 #include <fastcgi2/component.h>
@@ -39,7 +41,8 @@ public:
 	virtual void handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context);
 
 protected:
-	typedef void (proxy_t::*request_handler)(fastcgi::Request *request);
+	//typedef void (proxy_t::*request_handler)(fastcgi::Request *request);
+	typedef std::function<void (fastcgi::Request *request)> request_handler;
 	typedef boost::char_separator<char> separator_t;
 	typedef boost::tokenizer<separator_t> tokenizer_t;
 
@@ -84,7 +87,7 @@ protected:
 	virtual void register_handlers();
 	void register_handler(const char *name, request_handler handler, bool override = false);
 
-private:
+protected:
 	typedef std::map<std::string, request_handler> request_handlers;
 
 	struct data;
@@ -113,4 +116,4 @@ private:
 
 } // namespace elliptics
 
-#endif /* PROXY_HPP_MODULE */
+#endif /* INCLUDE__ELLIPTICS_FASTCGI__PROXY_HPP */
