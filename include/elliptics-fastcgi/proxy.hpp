@@ -41,7 +41,6 @@ public:
 	virtual void handleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context);
 
 protected:
-	//typedef void (proxy_t::*request_handler)(fastcgi::Request *request);
 	typedef std::function<void (fastcgi::Request *request)> request_handler;
 	typedef boost::char_separator<char> separator_t;
 	typedef boost::tokenizer<separator_t> tokenizer_t;
