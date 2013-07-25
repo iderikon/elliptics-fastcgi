@@ -1,3 +1,10 @@
+elliptics-fastcgi (2.0.3) lucid; urgency=low
+
+  * Added dependence of elliptics_cpp
+  * Fastcgi factory renamed to elliptics-proxy
+
+ -- Artem Sokolov <derikon@yandex-team.ru>  Thu, 25 Jul 2013 14:59:02 +0400
+
 elliptics-fastcgi (2.0.2) lucid; urgency=low
 
   * added definitions of -dev and -dbg packages into debian/control
