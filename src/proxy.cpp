@@ -1001,5 +1001,5 @@ void proxy_t::exec_script_handler(fastcgi::Request *request) {
 } // namespace elliptics
 
 FCGIDAEMON_REGISTER_FACTORIES_BEGIN()
-FCGIDAEMON_ADD_DEFAULT_FACTORY("proxy_factory", elliptics::proxy_t)
+FCGIDAEMON_ADD_DEFAULT_FACTORY("elliptics-proxy", elliptics::proxy_t)
 FCGIDAEMON_REGISTER_FACTORIES_END()
