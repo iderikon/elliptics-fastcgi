@@ -18,7 +18,6 @@ add_library(${TARGET} SHARED ${SOURCES})
 
 target_link_libraries(
 	${TARGET}
-	mastermind
 	fastcgi-daemon2 
 	elliptics_cpp
 	)
