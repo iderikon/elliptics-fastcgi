@@ -654,28 +654,30 @@ void proxy_t::get_handler(fastcgi::Request *request) {
 
 	auto dc = elliptics::data_container_t::unpack(rr.file(), embeded);
 
-	request->setStatus(200);
-	request->setContentType(content_type);
+	time_t timestamp = rr.io_attribute()->timestamp.tsec;
 
 	auto ts = dc.get<elliptics::DNET_FCGI_EMBED_TIMESTAMP>();
+	if (ts) {
+		timestamp = (time_t)(ts->tv_sec);
+	}
 
 	char ts_str[128] = {0};
-	if (ts) {
-		time_t timestamp = (time_t)(ts->tv_sec);
-		struct tm tmp;
-		strftime(ts_str, sizeof (ts_str), "%a, %d %b %Y %T %Z", gmtime_r(&timestamp, &tmp));
+	struct tm tmp;
+	strftime(ts_str, sizeof (ts_str), "%a, %d %b %Y %T %Z", gmtime_r(&timestamp, &tmp));
 
-		if (request->hasHeader("If-Modified-Since")) {
-			if (request->getHeader("If-Modified-Since") == ts_str) {
-				request->setStatus(304);
-				return;
-			}
+	if (request->hasHeader("If-Modified-Since")) {
+		if (request->getHeader("If-Modified-Since") == ts_str) {
+			request->setStatus(304);
+			return;
 		}
 	}
 
 	request->setHeader("Last-Modified", ts_str);
 
 	std::string d = dc.data.to_string();
+
+	request->setStatus(200);
+	request->setContentType(content_type);
 
 	request->setHeader("Content-Length",
 						boost::lexical_cast<std::string>(d.size()));
