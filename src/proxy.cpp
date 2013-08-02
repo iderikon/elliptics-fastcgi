@@ -643,7 +643,14 @@ void proxy_t::get_handler(fastcgi::Request *request) {
 	auto offset = get_arg<uint64_t>(request, "offset", 0);
 	auto size = get_arg<uint64_t>(request, "size", 0);
 
+	session.set_exceptions_policy(ioremap::elliptics::session::no_exceptions);
 	auto arr = session.read_data(key, offset, size);
+	arr.wait();
+	if (arr.error()) {
+		request->setStatus(arr.error().code() == -ENOENT ? 404 : 501);
+		log()->error(arr.error().message().c_str());
+		return;
+	}
 
 	auto rr = get_results(request, arr).front();
 
@@ -692,7 +699,14 @@ void proxy_t::delete_handler(fastcgi::Request *request) {
 	session.set_filter(ioremap::elliptics::filters::all);
 
 	try {
-		session.remove(key).wait();
+		session.set_exceptions_policy(ioremap::elliptics::session::no_exceptions);
+		auto arr = session.remove(key);
+		arr.wait();
+		if (arr.error()) {
+			request->setStatus(arr.error().code() == -ENOENT ? 404 : 501);
+			log()->error(arr.error().message().c_str());
+			return;
+		}
 	} catch (std::exception &e) {
 		log()->error("Exception: %s", e.what());
 		request->setStatus(503);
@@ -707,7 +721,14 @@ void proxy_t::download_info_handler(fastcgi::Request *request) {
 	auto session = get_session(request);
 
 	session.set_filter(ioremap::elliptics::filters::all);
+	session.set_exceptions_policy(ioremap::elliptics::session::no_exceptions);
 	auto alr = session.lookup(key);
+	alr.wait();
+    if (alr.error()) {
+        request->setStatus(alr.error().code() == -ENOENT ? 404 : 501);
+        log()->error(alr.error().message().c_str());
+        return;
+    }
 	auto result = get_results(request, alr);
 
 
