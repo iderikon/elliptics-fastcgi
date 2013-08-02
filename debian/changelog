@@ -1,3 +1,9 @@
+elliptics-fastcgi (2.0.6) lucid; urgency=low
+
+  * Fixed logick in /get /download-info and /delete handlers: response code is 404 if file does not exist
+
+ -- Artem Sokolov <derikon@yandex-team.ru>  Fri, 02 Aug 2013 15:23:15 +0400
+
 elliptics-fastcgi (2.0.5) precise; urgency=low
 
   * Fixed Last-Modified logick in /get handler
