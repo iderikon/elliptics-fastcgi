@@ -1,3 +1,9 @@
+elliptics-fastcgi (2.0.7) lucid; urgency=low
+
+  * Content type of stat_log was changed to "text/xml"
+
+ -- Artem Sokolov <derikon@yandex-team.ru>  Tue, 13 Aug 2013 19:50:57 +0400
+
 elliptics-fastcgi (2.0.6) lucid; urgency=low
 
   * Fixed logick in /get /download-info and /delete handlers: response code is 404 if file does not exist
