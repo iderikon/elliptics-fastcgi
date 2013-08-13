@@ -819,7 +819,7 @@ void proxy_t::stat_log_handler(fastcgi::Request *request) {
 
 	std::string body = oss.str();
 	request->setStatus(200);
-	request->setContentType("text/plaint");
+	request->setContentType("text/xml");
 	request->setHeader("Context-Lenght",
 						boost::lexical_cast<std::string>(
 							body.length()));
