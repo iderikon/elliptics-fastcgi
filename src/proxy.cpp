@@ -437,7 +437,7 @@ size_t proxy_t::uploads_need(size_t success_copies_num) {
 }
 
 elliptics::lookup_result_t proxy_t::parse_lookup(const ioremap::elliptics::lookup_result_entry &entry) {
-	return elliptics::lookup_result_t(entry, m_data->m_eblob_style_path, m_data->m_base_port);
+	return elliptics::lookup_result_t(entry, m_data->m_eblob_style_path, m_data->m_base_port, m_data->m_directory_bit_num);
 }
 
 void proxy_t::register_handlers() {
