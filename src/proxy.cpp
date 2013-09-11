@@ -703,7 +703,7 @@ void proxy_t::delete_handler(fastcgi::Request *request) {
 		auto arr = session.remove(key);
 		arr.wait();
 		if (arr.error()) {
-			request->setStatus(arr.error().code() == -ENOENT ? 404 : 501);
+			request->setStatus(arr.error().code() == -ENOENT ? 402 : 501);
 			log()->error(arr.error().message().c_str());
 			return;
 		}
